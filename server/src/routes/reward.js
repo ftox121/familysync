@@ -4,6 +4,14 @@ import { authMiddleware } from '../middleware/auth.js'
 
 const router = express.Router()
 
+async function getMembershipByFamily(familyId, email) {
+  const result = await query(
+    'SELECT * FROM family_members WHERE family_id = $1 AND user_email = $2 LIMIT 1',
+    [familyId, email]
+  )
+  return result.rows[0] || null
+}
+
 // Get rewards for family
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -25,6 +33,10 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     const { family_id, title, description, points_cost, icon } = req.body
 
+    const membership = await getMembershipByFamily(family_id, req.user.email)
+    if (!membership || !['parent', 'grandparent'].includes(membership.role))
+      return res.status(403).json({ error: 'Only parents can create rewards' })
+
     const result = await query(
       `INSERT INTO rewards (family_id, title, description, points_cost, icon, created_by)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
@@ -41,6 +53,17 @@ router.post('/', authMiddleware, async (req, res) => {
 // Claim reward (children)
 router.post('/:id/claim', authMiddleware, async (req, res) => {
   try {
+    const rewardResult = await query('SELECT * FROM rewards WHERE id = $1 LIMIT 1', [req.params.id])
+    const reward = rewardResult.rows[0]
+    if (!reward) return res.status(404).json({ error: 'Reward not found' })
+
+    const membership = await getMembershipByFamily(reward.family_id, req.user.email)
+    if (!membership || membership.role !== 'child')
+      return res.status(403).json({ error: 'Only child accounts can claim rewards' })
+
+    if ((membership.points || 0) < reward.points_cost)
+      return res.status(400).json({ error: 'Not enough points' })
+
     const result = await query(
       `INSERT INTO reward_claims (reward_id, user_email, status)
        VALUES ($1, $2, 'pending') RETURNING *`,
@@ -79,6 +102,20 @@ router.put('/claims/:id', authMiddleware, async (req, res) => {
   try {
     const { status } = req.body
 
+    const claimLookup = await query(
+      `SELECT rc.*, r.family_id, r.points_cost
+       FROM reward_claims rc
+       JOIN rewards r ON rc.reward_id = r.id
+       WHERE rc.id = $1 LIMIT 1`,
+      [req.params.id]
+    )
+    const claimRow = claimLookup.rows[0]
+    if (!claimRow) return res.status(404).json({ error: 'Claim not found' })
+
+    const membership = await getMembershipByFamily(claimRow.family_id, req.user.email)
+    if (!membership || !['parent', 'grandparent'].includes(membership.role))
+      return res.status(403).json({ error: 'Only parents can review claims' })
+
     const result = await query(
       `UPDATE reward_claims 
        SET status = $1, approved_at = CURRENT_TIMESTAMP, approved_by = $2
@@ -89,11 +126,9 @@ router.put('/claims/:id', authMiddleware, async (req, res) => {
     // If approved, deduct points from user
     if (status === 'approved') {
       const claim = result.rows[0]
-      const reward = await query('SELECT points_cost FROM rewards WHERE id = $1', [claim.reward_id])
-      
       await query(
         'UPDATE family_members SET points = points - $1 WHERE user_email = $2',
-        [reward.rows[0].points_cost, claim.user_email]
+        [claimRow.points_cost, claim.user_email]
       )
     }
 

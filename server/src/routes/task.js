@@ -4,6 +4,14 @@ import { authMiddleware } from '../middleware/auth.js'
 
 const router = express.Router()
 
+async function getMembership(familyId, email) {
+  const result = await query(
+    'SELECT * FROM family_members WHERE family_id = $1 AND user_email = $2 LIMIT 1',
+    [familyId, email]
+  )
+  return result.rows[0] || null
+}
+
 // Get tasks for family
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -50,6 +58,17 @@ router.post('/', authMiddleware, async (req, res) => {
       due_date,
       points_reward,
     } = req.body
+
+    const membership = await getMembership(family_id, req.user.email)
+    if (!membership || !['parent', 'grandparent'].includes(membership.role))
+      return res.status(403).json({ error: 'Only parents can create tasks' })
+
+    if (assigned_to) {
+      const assignee = await getMembership(family_id, assigned_to)
+      if (!assignee) return res.status(400).json({ error: 'Assignee is not in this family' })
+      if (assignee.role !== 'child')
+        return res.status(400).json({ error: 'Tasks can be assigned only to child profiles' })
+    }
 
     const result = await query(
       `INSERT INTO tasks (family_id, title, description, category, priority, status, assigned_to, created_by, due_date, points_reward)

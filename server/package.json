@@ -7,7 +7,11 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "db:migrate": "node src/db/migrate.js"
+    "db:migrate": "node src/db/migrate.js",
+    "db:add-animal-id": "node src/db/add-animal-id.js",
+    "db:rewards": "node src/db/create-rewards.js",
+    "db:task-messages": "node src/db/create-messages.js",
+    "db:family-messages": "node src/db/create-family-messages.js"
   },
   "keywords": ["familysync", "backend", "api"],
   "author": "",
