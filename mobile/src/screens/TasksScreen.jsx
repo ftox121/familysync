@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
-import { Search, SlidersHorizontal, UserRound } from 'lucide-react-native'
+import { useMemo, useState, useRef, useCallback } from 'react'
+import { Search, SlidersHorizontal, UserRound, CalendarDays, ListTodo } from 'lucide-react-native'
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Pressable,
   ScrollView,
@@ -10,12 +11,15 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import ScreenBackground from '../components/ScreenBackground'
 import StatsBar from '../components/StatsBar'
 import TaskCard from '../components/TaskCard'
+import TaskCalendarView from '../components/TaskCalendarView'
 import { useFamilyContext } from '../context/FamilyContext'
-import { colors, radius, typography } from '../theme'
+import { useTabBar } from '../context/TabBarContext'
+import { colors, radius, typography, shadows } from '../theme'
 
 const FILTERS = [
   { key: 'all', label: 'Все' },
@@ -34,15 +38,31 @@ const SORT_OPTIONS = [
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 }
 
+const VIEW_LIST = 'list'
+const VIEW_CALENDAR = 'calendar'
+
 export default function TasksScreen({ navigation }) {
   const { tasks, members, family, user, isLoading } = useFamilyContext()
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [mineOnly, setMineOnly] = useState(false)
   const [sortBy, setSortBy] = useState('created')
+  const [viewMode, setViewMode] = useState(VIEW_LIST)
   const insets = useSafeAreaInsets()
+  const { handleScroll } = useTabBar()
+  const slideAnim = useRef(new Animated.Value(0)).current
 
   const q = query.trim().toLowerCase()
+
+  const handleViewChange = useCallback((mode) => {
+    if (mode === viewMode) return
+    Animated.timing(slideAnim, {
+      toValue: mode === VIEW_CALENDAR ? 1 : 0,
+      duration: 250,
+      useNativeDriver: false,
+    }).start()
+    setViewMode(mode)
+  }, [viewMode, slideAnim])
 
   const filtered = useMemo(() => {
     let list = filter === 'all' ? tasks : tasks.filter(t => t.status === filter)
@@ -87,101 +107,181 @@ export default function TasksScreen({ navigation }) {
         ? 'Задач пока нет. Нажмите «Добавить» внизу!'
         : 'Нет задач в этом статусе'
 
-  return (
-    <ScreenBackground>
-      <FlatList
-        data={filtered}
-        keyExtractor={item => item.id}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingTop: insets.top + 12, paddingBottom: 132 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <>
-            <Text style={styles.familyLabel}>{family?.name ?? 'СемьяПлан'}</Text>
-            <Text style={typography.hero}>Задачи</Text>
-            <Text style={[typography.subtitle, styles.sub]}>Распределяйте дела вместе — спокойно и понятно</Text>
-            <View style={{ height: 20 }} />
-            <StatsBar tasks={tasks} />
-            <View style={{ height: 18 }} />
-            <View style={styles.searchShell}>
-              <Search size={20} color={colors.textMuted} style={styles.searchIcon} />
-              <TextInput
-                style={styles.search}
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Поиск по названию или описанию…"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.toolbar}>
+  // Animated indicator position for the view toggle
+  const indicatorTranslate = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1], // will be multiplied in style
+  })
+
+  const renderHeader = () => (
+    <>
+      <Text style={styles.familyLabel}>{family?.name ?? 'СемьяПлан'}</Text>
+      <Text style={typography.hero}>Задачи</Text>
+      <Text style={[typography.subtitle, styles.sub]}>Распределяйте дела вместе — спокойно и понятно</Text>
+      <View style={{ height: 16 }} />
+
+      {/* View Mode Toggle */}
+      <View style={[styles.toggleWrap, shadows.press]}>
+        <Animated.View
+          style={[
+            styles.toggleIndicator,
+            {
+              left: slideAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['2%', '50%'],
+              }),
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={['#c084fc', '#f9a8d4']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.toggleIndicatorGradient}
+          />
+        </Animated.View>
+
+        <Pressable
+          style={styles.toggleBtn}
+          onPress={() => handleViewChange(VIEW_LIST)}
+        >
+          <ListTodo size={16} color={viewMode === VIEW_LIST ? '#fff' : colors.textMuted} />
+          <Text style={[styles.toggleText, viewMode === VIEW_LIST && styles.toggleTextActive]}>
+            Список
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.toggleBtn}
+          onPress={() => handleViewChange(VIEW_CALENDAR)}
+        >
+          <CalendarDays size={16} color={viewMode === VIEW_CALENDAR ? '#fff' : colors.textMuted} />
+          <Text style={[styles.toggleText, viewMode === VIEW_CALENDAR && styles.toggleTextActive]}>
+            Календарь
+          </Text>
+        </Pressable>
+      </View>
+      <View style={{ height: 16 }} />
+
+      {viewMode === VIEW_LIST && (
+        <>
+          <StatsBar tasks={tasks} />
+          <View style={{ height: 18 }} />
+          <View style={styles.searchShell}>
+            <Search size={20} color={colors.textMuted} style={styles.searchIcon} />
+            <TextInput
+              style={styles.search}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Поиск по названию или описанию…"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+          <View style={styles.toolbar}>
+            <Pressable
+              onPress={() => setMineOnly(v => !v)}
+              style={({ pressed }) => [
+                styles.mineBtn,
+                mineOnly && styles.mineBtnOn,
+                pressed && styles.btnPress,
+              ]}
+            >
+              <UserRound size={17} color={mineOnly ? '#fff' : colors.primary} />
+              <Text style={[styles.mineBtnText, mineOnly && styles.mineBtnTextOn]}>Мои</Text>
+            </Pressable>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sortScroll}>
+              <View style={styles.sortInner}>
+                <SlidersHorizontal size={14} color={colors.textMuted} style={{ marginRight: 6 }} />
+                {SORT_OPTIONS.map(o => (
+                  <Pressable
+                    key={o.value}
+                    onPress={() => setSortBy(o.value)}
+                    style={({ pressed }) => [
+                      styles.sortChip,
+                      sortBy === o.value && styles.sortChipOn,
+                      pressed && styles.btnPress,
+                    ]}
+                  >
+                    <Text style={[styles.sortChipText, sortBy === o.value && styles.sortChipTextOn]}>
+                      {o.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterScroll}
+            contentContainerStyle={styles.filterInner}
+          >
+            {FILTERS.map(f => (
               <Pressable
-                onPress={() => setMineOnly(v => !v)}
+                key={f.key}
+                onPress={() => setFilter(f.key)}
                 style={({ pressed }) => [
-                  styles.mineBtn,
-                  mineOnly && styles.mineBtnOn,
+                  styles.filterChip,
+                  filter === f.key && styles.filterChipOn,
                   pressed && styles.btnPress,
                 ]}
               >
-                <UserRound size={17} color={mineOnly ? '#fff' : colors.primary} />
-                <Text style={[styles.mineBtnText, mineOnly && styles.mineBtnTextOn]}>Мои</Text>
+                <Text style={[styles.filterText, filter === f.key && styles.filterTextOn]}>
+                  {f.label}
+                </Text>
               </Pressable>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sortScroll}>
-                <View style={styles.sortInner}>
-                  <SlidersHorizontal size={14} color={colors.textMuted} style={{ marginRight: 6 }} />
-                  {SORT_OPTIONS.map(o => (
-                    <Pressable
-                      key={o.value}
-                      onPress={() => setSortBy(o.value)}
-                      style={({ pressed }) => [
-                        styles.sortChip,
-                        sortBy === o.value && styles.sortChipOn,
-                        pressed && styles.btnPress,
-                      ]}
-                    >
-                      <Text style={[styles.sortChipText, sortBy === o.value && styles.sortChipTextOn]}>
-                        {o.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.filterScroll}
-              contentContainerStyle={styles.filterInner}
-            >
-              {FILTERS.map(f => (
-                <Pressable
-                  key={f.key}
-                  onPress={() => setFilter(f.key)}
-                  style={({ pressed }) => [
-                    styles.filterChip,
-                    filter === f.key && styles.filterChipOn,
-                    pressed && styles.btnPress,
-                  ]}
-                >
-                  <Text style={[styles.filterText, filter === f.key && styles.filterTextOn]}>
-                    {f.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            <Text style={styles.sectionKicker}>Список</Text>
-          </>
-        }
-        ListEmptyComponent={<Text style={styles.empty}>{emptyText}</Text>}
-        renderItem={({ item }) => (
-          <TaskCard
-            task={item}
-            members={members}
-            onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-          />
-        )}
-      />
+            ))}
+          </ScrollView>
+          <Text style={styles.sectionKicker}>Список</Text>
+        </>
+      )}
+
+      {viewMode === VIEW_CALENDAR && (
+        <TaskCalendarView
+          tasks={tasks}
+          members={members}
+          navigation={navigation}
+        />
+      )}
+    </>
+  )
+
+  return (
+    <ScreenBackground>
+      {viewMode === VIEW_LIST ? (
+        <FlatList
+          data={filtered}
+          keyExtractor={item => item.id}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingTop: insets.top + 12, paddingBottom: 132 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          ListHeaderComponent={renderHeader()}
+          ListEmptyComponent={<Text style={styles.empty}>{emptyText}</Text>}
+          renderItem={({ item }) => (
+            <TaskCard
+              task={item}
+              members={members}
+              onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+            />
+          )}
+        />
+      ) : (
+        <ScrollView
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingTop: insets.top + 12, paddingBottom: 132 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+        >
+          {renderHeader()}
+        </ScrollView>
+      )}
     </ScreenBackground>
   )
 }
@@ -195,6 +295,50 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   sub: { marginTop: 6, marginBottom: 0, maxWidth: 320 },
+
+  /* View Mode Toggle */
+  toggleWrap: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceStrong,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.outline,
+    padding: 4,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  toggleIndicator: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+    width: '48%',
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  toggleIndicatorGradient: {
+    flex: 1,
+    borderRadius: radius.md,
+  },
+  toggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+    zIndex: 1,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textMuted,
+  },
+  toggleTextActive: {
+    color: '#fff',
+    fontWeight: '800',
+  },
+
+  /* Search & Filters (list mode) */
   searchShell: {
     flexDirection: 'row',
     alignItems: 'center',

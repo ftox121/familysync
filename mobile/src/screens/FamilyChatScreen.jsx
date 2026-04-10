@@ -18,11 +18,13 @@ import { ru } from 'date-fns/locale'
 import { apiClient } from '../api/apiClient'
 import ScreenBackground from '../components/ScreenBackground'
 import { useFamilyContext } from '../context/FamilyContext'
+import { useTabBar } from '../context/TabBarContext'
 import { colors, radius, spacing, typography } from '../theme'
 
 export default function FamilyChatScreen() {
   const { family, members, user, isLoading: familyLoading } = useFamilyContext()
   const insets = useSafeAreaInsets()
+  const { handleScroll, show } = useTabBar()
   const [message, setMessage] = useState('')
   const listRef = useRef(null)
   const queryClient = useQueryClient()
@@ -45,6 +47,10 @@ export default function FamilyChatScreen() {
   useEffect(() => {
     if (messages.length) listRef.current?.scrollToEnd({ animated: true })
   }, [messages.length])
+
+  useEffect(() => {
+    show()
+  }, [show])
 
   const getName = email => members.find(m => m.user_email === email)?.display_name || email
 
@@ -86,6 +92,8 @@ export default function FamilyChatScreen() {
             style={styles.list}
             contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
             renderItem={({ item }) => {
               const mine = item.user_email === user?.email
               return (

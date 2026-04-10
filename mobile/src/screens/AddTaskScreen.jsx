@@ -4,7 +4,7 @@ import { Picker } from '@react-native-picker/picker'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { LinearGradient } from 'expo-linear-gradient'
-import { ArrowLeft, Calendar, Star } from 'lucide-react-native'
+import { ArrowLeft, Calendar, Check, Sparkles, Star } from 'lucide-react-native'
 import {
   KeyboardAvoidingView,
   Modal,
@@ -34,6 +34,10 @@ export default function AddTaskScreen({ navigation }) {
   const [assignedTo, setAssignedTo] = useState('')
   const [priority, setPriority] = useState('medium')
   const [rewardStars, setRewardStars] = useState(2)
+  const [isQuest, setIsQuest] = useState(false)
+  const [questParticipants, setQuestParticipants] = useState([])
+  const [minParticipants, setMinParticipants] = useState('2')
+  const [rewardMultiplier, setRewardMultiplier] = useState('1.5')
   const [category, setCategory] = useState('other')
   const [dueDate, setDueDate] = useState('')
   const [showDate, setShowDate] = useState(false)
@@ -46,6 +50,12 @@ export default function AddTaskScreen({ navigation }) {
   const assignVm = useSmartAssignRecommendation(members, tasks)
   const bestEmail = assignVm.bestCandidate?.member.userEmail
   const childMembers = members.filter(m => m.role === 'child')
+
+  const toggleQuestParticipant = email => {
+    setQuestParticipants(prev =>
+      prev.includes(email) ? prev.filter(v => v !== email) : [...prev, email]
+    )
+  }
 
   const handleCreateChild = async () => {
     if (!childName.trim()) {
@@ -76,6 +86,10 @@ export default function AddTaskScreen({ navigation }) {
       showError('Введите название задачи')
       return
     }
+    if (isQuest && questParticipants.length === 0) {
+      showError('Выберите участников квеста')
+      return
+    }
     setLoading(true)
     try {
       const assignee = members.find(m => m.user_email === assignedTo)
@@ -84,18 +98,32 @@ export default function AddTaskScreen({ navigation }) {
         family_id: familyId,
         title: title.trim(),
         description: description.trim(),
-        assigned_to: assignedTo || null,
+        assigned_to: isQuest ? null : assignedTo || null,
         assigned_name: assignee?.display_name ?? null,
         status: 'pending',
         priority,
         category,
         due_date: dueDate || null,
         points_reward: points,
+        is_quest: isQuest,
+        min_participants: isQuest ? Number(minParticipants || 1) : 1,
+        reward_multiplier: isQuest ? Number(rewardMultiplier || 1) : 1,
+        participant_emails: isQuest ? questParticipants : [],
       }
 
       await apiClient.createTask(taskPayload)
 
-      if (assignedTo && assignedTo !== user.email) {
+      if (isQuest) {
+        for (const participantEmail of questParticipants) {
+          await apiClient.createNotification({
+            family_id: familyId,
+            user_email: participantEmail,
+            title: 'Новый квест!',
+            message: `Вы участвуете в квесте: "${title.trim()}"`,
+            type: 'task_assigned',
+          })
+        }
+      } else if (assignedTo && assignedTo !== user.email) {
         const notificationPayload = {
           family_id: familyId,
           user_email: assignedTo,
@@ -113,6 +141,10 @@ export default function AddTaskScreen({ navigation }) {
       setAssignedTo('')
       setDueDate('')
       setRewardStars(2)
+      setIsQuest(false)
+      setQuestParticipants([])
+      setMinParticipants('2')
+      setRewardMultiplier('1.5')
       navigation.navigate('MainTabs', { screen: 'Tasks' })
     } finally {
       setLoading(false)
@@ -209,6 +241,23 @@ export default function AddTaskScreen({ navigation }) {
               </View>
             </View>
 
+            <Text style={styles.label}>Формат задачи</Text>
+            <View style={styles.modeRow}>
+              <Pressable
+                onPress={() => setIsQuest(false)}
+                style={({ pressed }) => [styles.modeChip, !isQuest && styles.modeChipActive, pressed && { opacity: 0.88 }]}
+              >
+                <Text style={[styles.modeChipText, !isQuest && styles.modeChipTextActive]}>Обычная</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setIsQuest(true)}
+                style={({ pressed }) => [styles.modeChip, isQuest && styles.modeChipActive, pressed && { opacity: 0.88 }]}
+              >
+                <Sparkles size={15} color={isQuest ? '#fff' : colors.primary} />
+                <Text style={[styles.modeChipText, isQuest && styles.modeChipTextActive]}>Квест</Text>
+              </Pressable>
+            </View>
+
             <Text style={styles.label}>Назначить</Text>
             {childMembers.length === 0 ? (
               <View style={styles.noChildrenBox}>
@@ -234,14 +283,58 @@ export default function AddTaskScreen({ navigation }) {
                 ) : null}
               </View>
             ) : null}
-            <View style={styles.pickerWrap}>
-              <Picker selectedValue={assignedTo} onValueChange={setAssignedTo}>
-                <Picker.Item label="— не назначено —" value="" />
-                {childMembers.map(m => (
-                  <Picker.Item key={m.id} label={m.display_name} value={m.user_email} />
-                ))}
-              </Picker>
-            </View>
+            {isQuest ? (
+              <>
+                <View style={styles.participantsWrap}>
+                  {childMembers.map(member => {
+                    const selected = questParticipants.includes(member.user_email)
+                    return (
+                      <Pressable
+                        key={member.id}
+                        onPress={() => toggleQuestParticipant(member.user_email)}
+                        style={({ pressed }) => [styles.participantChip, selected && styles.participantChipActive, pressed && { opacity: 0.9 }]}
+                      >
+                        <Text style={[styles.participantChipText, selected && styles.participantChipTextActive]}>{member.display_name}</Text>
+                        {selected ? <Check size={14} color="#fff" /> : null}
+                      </Pressable>
+                    )
+                  })}
+                </View>
+                <View style={styles.row}>
+                  <View style={styles.half}>
+                    <Text style={styles.label}>Нужно участников</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={minParticipants}
+                      onChangeText={text => setMinParticipants(text.replace(/[^0-9]/g, ''))}
+                      keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+                      placeholder="2"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                  <View style={styles.half}>
+                    <Text style={styles.label}>Множитель награды</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={rewardMultiplier}
+                      onChangeText={text => setRewardMultiplier(text.replace(/[^0-9.]/g, ''))}
+                      keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
+                      placeholder="1.5"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                </View>
+              </>
+            ) : (
+              <View style={styles.pickerWrap}>
+                <Picker selectedValue={assignedTo} onValueChange={setAssignedTo}>
+                  <Picker.Item label="— не назначено —" value="" />
+                  {childMembers.map(m => (
+                    <Picker.Item key={m.id} label={m.display_name} value={m.user_email} />
+                  ))}
+                </Picker>
+              </View>
+            )}
 
             <Text style={styles.label}>Дедлайн</Text>
             <Pressable
@@ -380,6 +473,21 @@ const styles = StyleSheet.create({
   textarea: { minHeight: 100, textAlignVertical: 'top' },
   row: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
+  modeRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  modeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    backgroundColor: colors.surfaceStrong,
+  },
+  modeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  modeChipText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  modeChipTextActive: { color: '#fff' },
   pickerWrap: {
     borderWidth: 1,
     borderColor: colors.outline,
@@ -388,6 +496,26 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.muted,
   },
+  participantsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  participantChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceStrong,
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  participantChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  participantChipText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  participantChipTextActive: { color: '#fff' },
   dateBtn: {
     flexDirection: 'row',
     alignItems: 'center',

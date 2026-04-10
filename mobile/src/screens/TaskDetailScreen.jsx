@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { ArrowLeft, CheckCircle2, Clock, MessageCircle, Star, Trash2 } from 'lucide-react-native'
+import { ArrowLeft, CheckCircle2, Clock, MessageCircle, Sparkles, Star, Trash2 } from 'lucide-react-native'
 import {
   ActivityIndicator,
   Alert,
@@ -49,6 +49,12 @@ export default function TaskDetailScreen({ navigation, route }) {
 
   const task = tasks.find(t => t.id === taskId)
   const assignee = members?.find(m => m.user_email === task?.assigned_to)
+  const questParticipants = Array.isArray(task?.participants) ? task.participants : []
+  const questParticipantMembers = questParticipants
+    .map(p => ({ participant: p, member: members?.find(m => m.user_email === p.user_email) }))
+    .filter(Boolean)
+  const currentQuestParticipation = questParticipants.find(p => p.user_email === user?.email)
+  const completedQuestCount = questParticipants.filter(p => p.status === 'completed').length
   const role = currentMembership?.role
   const canDelete = FamilyAccessPolicy.canDeleteTask(role)
   const canDirectComplete = isParent || role === 'grandparent' || role === 'other'
@@ -238,12 +244,18 @@ export default function TaskDetailScreen({ navigation, route }) {
   }
 
   const showChildSubmit =
+    !task?.is_quest &&
     isChild &&
     task.status !== 'completed' &&
     task.status !== 'pending_confirmation' &&
     task.assigned_to === user?.email
 
-  const showParentConfirm = canConfirm && task.status === 'pending_confirmation'
+  const showParentConfirm = !task?.is_quest && canConfirm && task.status === 'pending_confirmation'
+  const showQuestParticipate =
+    task?.is_quest &&
+    task.status !== 'completed' &&
+    currentQuestParticipation &&
+    currentQuestParticipation.status !== 'completed'
 
   const adultStatuses = ['pending', 'in_progress', 'pending_confirmation', 'completed']
   const childStatuses = [
@@ -253,6 +265,19 @@ export default function TaskDetailScreen({ navigation, route }) {
     ...(task.status === 'completed' ? ['completed'] : []),
   ]
   const availableStatuses = canDirectComplete ? adultStatuses : childStatuses
+
+  const completeQuestParticipation = async () => {
+    setLoading(true)
+    try {
+      await apiClient.completeQuestParticipation(task.id)
+      showSuccess('Ваше участие в квесте отмечено')
+      refresh()
+    } catch (error) {
+      showError(error?.message || 'Не удалось отметить участие')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <ScreenBackground>
@@ -280,6 +305,12 @@ export default function TaskDetailScreen({ navigation, route }) {
         {!!task.description && <Text style={styles.desc}>{task.description}</Text>}
 
         <View style={styles.badges}>
+          {task.is_quest ? (
+            <View style={styles.questBadge}>
+              <Sparkles size={12} color="#7c3aed" />
+              <Text style={styles.questBadgeText}>Epic Quest</Text>
+            </View>
+          ) : null}
           <View style={styles.badgeMuted}>
             <Text style={styles.badgeMutedText}>{CATEGORY_LABELS[task.category]}</Text>
           </View>
@@ -310,6 +341,33 @@ export default function TaskDetailScreen({ navigation, route }) {
           </View>
         )}
 
+        {task.is_quest ? (
+          <View style={styles.questPanel}>
+            <Text style={styles.questTitle}>Участники квеста</Text>
+            <Text style={styles.questMeta}>
+              Выполнили: {completedQuestCount} из {task.min_participants || 1} необходимых
+            </Text>
+            <View style={styles.questParticipantsWrap}>
+              {questParticipantMembers.map(({ participant, member }) => (
+                <View key={participant.user_email} style={styles.questMemberRow}>
+                  <MemberAvatar
+                    name={member?.display_name || participant.user_email}
+                    color={member?.avatar_color}
+                    animalId={member?.animal_id}
+                    size="sm"
+                  />
+                  <Text style={styles.questMemberName}>{member?.display_name || participant.user_email}</Text>
+                  <View style={[styles.questStatusPill, participant.status === 'completed' && styles.questStatusPillDone]}>
+                    <Text style={[styles.questStatusText, participant.status === 'completed' && styles.questStatusTextDone]}>
+                      {participant.status === 'completed' ? 'Готово' : 'В процессе'}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         <Text style={styles.sectionLabel}>Статус</Text>
         <View style={styles.currentStatusRow}>
           <Text style={styles.currentStatusLabel}>Текущий статус</Text>
@@ -318,7 +376,7 @@ export default function TaskDetailScreen({ navigation, route }) {
           </View>
         </View>
 
-        {!isChild && task.status !== 'completed' && task.status !== 'pending_confirmation' && (
+        {!task.is_quest && !isChild && task.status !== 'completed' && task.status !== 'pending_confirmation' && (
           <Pressable
             style={[styles.cta, styles.ctaInline, loading && styles.ctaDisabled]}
             onPress={() => handleStatusChange('completed')}
@@ -329,29 +387,31 @@ export default function TaskDetailScreen({ navigation, route }) {
           </Pressable>
         )}
 
-        <View style={styles.statusGrid}>
-          {availableStatuses.map(status => {
-            const active = task.status === status
-            const disabled = loading || (isChild && task.status === 'pending_confirmation')
-            return (
-              <Pressable
-                key={status}
-                disabled={disabled || active}
-                onPress={() => handleStatusChange(status)}
-                style={({ pressed }) => [
-                  styles.statusChip,
-                  active && styles.statusChipActive,
-                  disabled && !active && styles.statusChipDisabled,
-                  pressed && !disabled && !active && { opacity: 0.9 },
-                ]}
-              >
-                <Text style={[styles.statusChipText, active && styles.statusChipTextActive]}>
-                  {STATUS_LABELS[status]}
-                </Text>
-              </Pressable>
-            )
-          })}
-        </View>
+        {!task.is_quest ? (
+          <View style={styles.statusGrid}>
+            {availableStatuses.map(status => {
+              const active = task.status === status
+              const disabled = loading || (isChild && task.status === 'pending_confirmation')
+              return (
+                <Pressable
+                  key={status}
+                  disabled={disabled || active}
+                  onPress={() => handleStatusChange(status)}
+                  style={({ pressed }) => [
+                    styles.statusChip,
+                    active && styles.statusChipActive,
+                    disabled && !active && styles.statusChipDisabled,
+                    pressed && !disabled && !active && { opacity: 0.9 },
+                  ]}
+                >
+                  <Text style={[styles.statusChipText, active && styles.statusChipTextActive]}>
+                    {STATUS_LABELS[status]}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </View>
+        ) : null}
         {loading && (
           <View style={styles.inlineLoad}>
             <ActivityIndicator color={colors.primary} />
@@ -368,6 +428,17 @@ export default function TaskDetailScreen({ navigation, route }) {
             <Text style={styles.ctaText}>Готово, отправить на проверку</Text>
           </Pressable>
         )}
+
+        {showQuestParticipate ? (
+          <Pressable
+            style={[styles.cta, loading && styles.ctaDisabled]}
+            onPress={completeQuestParticipation}
+            disabled={loading}
+          >
+            <CheckCircle2 size={18} color="#fff" />
+            <Text style={styles.ctaText}>Отметить участие в квесте</Text>
+          </Pressable>
+        ) : null}
 
         {showParentConfirm && (
           <Pressable
@@ -435,6 +506,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.muted,
   },
   badgeMutedText: { fontSize: 12, color: colors.textSecondary },
+  questBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#f3e8ff',
+  },
+  questBadgeText: { fontSize: 12, color: '#7c3aed', fontWeight: '800' },
   badgeOutline: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -465,6 +546,31 @@ const styles = StyleSheet.create({
   },
   assigneeName: { fontSize: 14, fontWeight: '700', color: colors.text },
   assigneeRole: { fontSize: 12, color: colors.textMuted },
+  questPanel: {
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: colors.muted,
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  questTitle: { fontSize: 14, fontWeight: '800', color: colors.text },
+  questMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 4, marginBottom: 10 },
+  questParticipantsWrap: { gap: 8 },
+  questMemberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  questMemberName: { flex: 1, fontSize: 13, color: colors.text, fontWeight: '600' },
+  questStatusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceStrong,
+  },
+  questStatusPillDone: { backgroundColor: colors.successBg },
+  questStatusText: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
+  questStatusTextDone: { color: colors.success },
   sectionLabel: { fontSize: 14, fontWeight: '700', color: colors.text, marginTop: 8 },
   currentStatusRow: {
     flexDirection: 'row',

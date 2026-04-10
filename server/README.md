@@ -30,6 +30,7 @@ cp .env.example .env
 5. Запусти миграции:
 ```bash
 npm run db:migrate
+npm run db:rewards
 ```
 
 6. Запусти сервер:
@@ -71,4 +72,5 @@ npm run dev
 - `families` - Семьи
 - `family_members` - Участники семей
 - `tasks` - Задачи
+- `rewards` - Награды и бонусы
 - `notifications` - Уведомления

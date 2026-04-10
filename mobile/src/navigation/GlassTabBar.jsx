@@ -1,6 +1,6 @@
 import { BlurView } from 'expo-blur'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   Gift,
@@ -10,6 +10,7 @@ import {
   User,
 } from 'lucide-react-native'
 import { colors, gradients, radius, shadows, typography } from '../theme'
+import { useTabBar } from '../context/TabBarContext'
 
 const ICONS = {
   Tasks: ListTodo,
@@ -32,9 +33,15 @@ const ORDER = ['Tasks', 'Chat', 'AddTask', 'Rewards', 'Profile']
 export default function GlassTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets()
   const bottomPad = Math.max(insets.bottom, 14)
+  const { translateY } = useTabBar()
 
   return (
-    <View style={[styles.outer, { paddingBottom: bottomPad }]}> 
+    <Animated.View
+      style={[
+        styles.outer,
+        { paddingBottom: bottomPad, transform: [{ translateY }] },
+      ]}
+    >
       <View style={styles.pillWrap}>
         {Platform.OS === 'ios' ? (
           <BlurView intensity={55} tint="light" style={styles.blur}>
@@ -46,7 +53,7 @@ export default function GlassTabBar({ state, descriptors, navigation }) {
           </View>
         )}
       </View>
-    </View>
+    </Animated.View>
   )
 }
 

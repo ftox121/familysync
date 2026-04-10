@@ -5,6 +5,7 @@ import Toast from 'react-native-toast-message'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import SmartNotificationWorker from './src/components/SmartNotificationWorker'
 import { FamilyProvider, useFamilyContext } from './src/context/FamilyContext'
+import { TabBarProvider } from './src/context/TabBarContext'
 import { queryClientInstance } from './src/lib/queryClient'
 import RootNavigator from './src/navigation/RootNavigator'
 import { colors, gradients } from './src/theme'
@@ -52,7 +53,9 @@ export default function App() {
     <QueryClientProvider client={queryClientInstance}>
       <SafeAreaProvider>
         <FamilyProvider>
-          <Gate />
+          <TabBarProvider>
+            <Gate />
+          </TabBarProvider>
         </FamilyProvider>
       </SafeAreaProvider>
     </QueryClientProvider>

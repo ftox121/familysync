@@ -1,7 +1,7 @@
 import { format, isPast, isToday } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { LinearGradient } from 'expo-linear-gradient'
-import { ChevronRight, Clock, Star } from 'lucide-react-native'
+import { ChevronRight, Clock, Sparkles, Star, Users } from 'lucide-react-native'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { CATEGORY_LABELS, STATUS_LABELS } from '../lib/utils'
 import { colors, radius, shadows } from '../theme'
@@ -22,6 +22,11 @@ const STATUS_STYLES = {
 
 export default function TaskCard({ task, members, onPress }) {
   const assignee = members?.find(m => m.user_email === task.assigned_to)
+  const questParticipants = Array.isArray(task.participants)
+    ? task.participants
+        .map(p => members?.find(m => m.user_email === p.user_email))
+        .filter(Boolean)
+    : []
   const isOverdue =
     task.due_date && isPast(new Date(task.due_date)) && task.status !== 'completed'
   const isDueToday = task.due_date && isToday(new Date(task.due_date))
@@ -66,6 +71,12 @@ export default function TaskCard({ task, members, onPress }) {
           </Text>
         )}
         <View style={styles.chips}>
+          {task.is_quest ? (
+            <View style={styles.questChip}>
+              <Sparkles size={12} color="#7c3aed" />
+              <Text style={styles.questText}>Epic Quest</Text>
+            </View>
+          ) : null}
           <View style={styles.catChip}>
             <Text style={styles.catText}>{CATEGORY_LABELS[task.category] ?? task.category}</Text>
           </View>
@@ -98,7 +109,18 @@ export default function TaskCard({ task, members, onPress }) {
             <Text style={styles.noDue}>Без срока</Text>
           )}
           <View style={styles.rightMeta}>
-            {assignee ? <MemberAvatar name={assignee.display_name} color={assignee.avatar_color} animalId={assignee.animal_id} size="sm" /> : null}
+            {task.is_quest ? (
+              <View style={styles.questParticipants}>
+                <Users size={14} color={colors.textMuted} />
+                <View style={styles.questAvatars}>
+                  {questParticipants.slice(0, 3).map((member, index) => (
+                    <View key={member.id} style={{ marginLeft: index === 0 ? 0 : -8 }}>
+                      <MemberAvatar name={member.display_name} color={member.avatar_color} animalId={member.animal_id} size="sm" />
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : assignee ? <MemberAvatar name={assignee.display_name} color={assignee.avatar_color} animalId={assignee.animal_id} size="sm" /> : null}
             <ChevronRight size={18} color={colors.textMuted} />
           </View>
         </View>
@@ -156,6 +178,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(148,163,184,0.2)',
   },
   catText: { fontSize: 11, fontWeight: '700', color: colors.textSecondary },
+  questChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: '#f3e8ff',
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.18)',
+  },
+  questText: { fontSize: 11, fontWeight: '800', color: '#7c3aed' },
   statusChip: { 
     paddingHorizontal: 12, 
     paddingVertical: 6, 
@@ -177,4 +211,6 @@ const styles = StyleSheet.create({
   dueText: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
   noDue: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
   rightMeta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  questParticipants: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  questAvatars: { flexDirection: 'row', alignItems: 'center' },
 })

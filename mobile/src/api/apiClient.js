@@ -55,6 +55,16 @@ class ApiClient {
     await AsyncStorage.removeItem('auth_token')
   }
 
+  async clearLocalIdentity() {
+    await AsyncStorage.multiRemove([
+      'local_identity_email',
+      'local_identity_password',
+      'local_identity_name',
+      'auth_token',
+    ])
+    this.token = null
+  }
+
   async request(endpoint, options = {}) {
     const token = await this.getToken()
     const headers = {
@@ -138,7 +148,7 @@ class ApiClient {
   }
 
   async logout() {
-    await this.clearToken()
+    await this.clearLocalIdentity()
   }
 
   // Families
@@ -212,6 +222,12 @@ class ApiClient {
     })
   }
 
+  async completeQuestParticipation(taskId) {
+    return this.request(`/tasks/${taskId}/participants/complete`, {
+      method: 'POST',
+    })
+  }
+
   async updateTask(id, data) {
     return this.request(`/tasks/${id}`, {
       method: 'PUT',
@@ -258,6 +274,12 @@ class ApiClient {
 
   async claimReward(rewardId) {
     return this.request(`/rewards/${rewardId}/claim`, {
+      method: 'POST',
+    })
+  }
+
+  async redeemReward(rewardId) {
+    return this.request(`/rewards/${rewardId}/redeem`, {
       method: 'POST',
     })
   }

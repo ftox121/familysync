@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import * as Clipboard from 'expo-clipboard'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BarChart3, Check, Copy, LogOut, Users } from 'lucide-react-native'
+import { BarChart3, Check, Clock3, Copy, LogOut, Sparkles, Users } from 'lucide-react-native'
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +19,7 @@ import LeaderBoard from '../components/LeaderBoard'
 import MemberAvatar from '../components/MemberAvatar'
 import ScreenBackground from '../components/ScreenBackground'
 import { useFamilyContext } from '../context/FamilyContext'
+import { useTabBar } from '../context/TabBarContext'
 import { ROLE_LABELS } from '../lib/utils'
 import { showSuccess } from '../lib/toast'
 import { colors, gradients, radius, shadows, spacing, typography } from '../theme'
@@ -27,6 +29,18 @@ export default function ProfileScreen({ navigation }) {
     useFamilyContext()
   const [copied, setCopied] = useState(false)
   const insets = useSafeAreaInsets()
+  const { handleScroll, show } = useTabBar()
+
+  const { data: rewardClaims = [] } = useQuery({
+    queryKey: ['reward-claims', family?.id],
+    queryFn: () => apiClient.getRewardClaims(family.id),
+    enabled: !!family?.id,
+    refetchInterval: 30_000,
+  })
+
+  useEffect(() => {
+    show()
+  }, [show])
 
   if (isLoading)
     return (
@@ -48,6 +62,23 @@ export default function ProfileScreen({ navigation }) {
   })()
   const myTasks = tasks.filter(t => t.assigned_to === user?.email)
   const myCompleted = myTasks.filter(t => t.status === 'completed').length
+  const activeArtifacts = rewardClaims.filter(claim => {
+    if (claim.user_email !== user?.email) return false
+    if (claim.type !== 'artifact') return false
+    if (claim.status !== 'active') return false
+    if (!claim.active_until) return false
+    return new Date(claim.active_until).getTime() > Date.now()
+  })
+
+  const formatRemaining = iso => {
+    const diff = new Date(iso).getTime() - Date.now()
+    if (diff <= 0) return 'Истек'
+    const totalMinutes = Math.ceil(diff / 60000)
+    const hours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+    if (hours <= 0) return `${minutes} мин`
+    return `${hours} ч ${minutes} мин`
+  }
 
   const handleCopy = async () => {
     const code = family?.invite_code ?? ''
@@ -85,6 +116,8 @@ export default function ProfileScreen({ navigation }) {
           { paddingTop: insets.top + 12, paddingBottom: 132 },
         ]}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
         <Text style={typography.caption}>Ваш аккаунт</Text>
         <Text style={[typography.hero, { marginTop: 4, marginBottom: 4 }]}>Профиль</Text>
@@ -192,6 +225,44 @@ export default function ProfileScreen({ navigation }) {
         </View>
         <Text style={styles.analyticsChev}>›</Text>
       </Pressable>
+
+      <View style={[styles.card, shadows.card]}>
+        <View style={styles.artifactsTop}>
+          <View style={styles.artifactsTitleRow}>
+            <Sparkles size={18} color={colors.primary} />
+            <Text style={styles.artifactsTitle}>Активные артефакты</Text>
+          </View>
+          <View style={styles.artifactsCountPill}>
+            <Text style={styles.artifactsCountText}>{activeArtifacts.length}</Text>
+          </View>
+        </View>
+
+        {activeArtifacts.length === 0 ? (
+          <View style={styles.artifactsEmpty}>
+            <Text style={styles.artifactsEmptyTitle}>Сейчас нет активных эффектов</Text>
+            <Text style={styles.artifactsEmptyText}>
+              Когда вы активируете артефакт, он появится здесь с таймером действия.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.artifactsList}>
+            {activeArtifacts.map(claim => (
+              <View key={claim.id} style={styles.artifactRow}>
+                <View style={styles.artifactIconWrap}>
+                  <Text style={styles.artifactIcon}>{claim.icon || '🪄'}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.artifactName}>{claim.title}</Text>
+                  <View style={styles.artifactMetaRow}>
+                    <Clock3 size={12} color={colors.primary} />
+                    <Text style={styles.artifactMetaText}>Осталось: {formatRemaining(claim.active_until)}</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
 
       {achUnlocked.length > 0 && (
         <View style={[styles.card, shadows.card]}>
@@ -348,6 +419,55 @@ const styles = StyleSheet.create({
   analyticsTitle: { fontSize: 16, fontWeight: '800', color: colors.text, letterSpacing: -0.2 },
   analyticsSub: { fontSize: 12, color: colors.textSecondary, marginTop: 3, fontWeight: '500' },
   analyticsChev: { fontSize: 24, color: colors.textMuted, fontWeight: '300' },
+  artifactsTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  artifactsTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  artifactsTitle: { fontSize: 15, fontWeight: '800', color: colors.text },
+  artifactsCountPill: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primaryMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  artifactsCountText: { fontSize: 12, fontWeight: '800', color: colors.primary },
+  artifactsEmpty: {
+    padding: 14,
+    borderRadius: radius.md,
+    backgroundColor: colors.muted,
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  artifactsEmptyTitle: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 4 },
+  artifactsEmptyText: { fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+  artifactsList: { gap: 10 },
+  artifactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  artifactIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  artifactIcon: { fontSize: 20 },
+  artifactName: { fontSize: 14, fontWeight: '800', color: colors.text, marginBottom: 4 },
+  artifactMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  artifactMetaText: { fontSize: 12, fontWeight: '700', color: colors.primary },
   achTitle: { fontSize: 15, fontWeight: '800', marginBottom: 10, color: colors.text },
   achLine: { fontSize: 13, color: colors.textSecondary, marginTop: 8, lineHeight: 20, fontWeight: '500' },
 })
