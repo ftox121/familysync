@@ -16,6 +16,7 @@ import { useFamilyContext } from '../context/FamilyContext'
 import { colors, radius, spacing } from '../theme'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
+import { parseDate } from '../lib/utils'
 
 export default function TaskChat({ taskId, fullScreen = false }) {
   const { user, members } = useFamilyContext()
@@ -91,7 +92,7 @@ export default function TaskChat({ taskId, fullScreen = false }) {
                   {!isMe ? <Text style={styles.senderName}>{getMemberName(item.user_email)}</Text> : null}
                   <Text style={[styles.messageText, isMe && styles.myMessageText]}>{item.message}</Text>
                   <Text style={[styles.messageTime, isMe && styles.myMessageTime]}>
-                    {format(new Date(item.created_at || item.created_date), 'HH:mm', { locale: ru })}
+                    {format(parseDate(item.created_at || item.created_date), 'HH:mm', { locale: ru })}
                   </Text>
                   </View>
                 </View>

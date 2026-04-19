@@ -201,6 +201,33 @@ router.post('/:familyId/messages', authMiddleware, async (req, res) => {
   }
 })
 
+// Remove family member (parent/grandparent only, cannot remove yourself)
+router.delete('/:familyId/members/:memberId', authMiddleware, async (req, res) => {
+  try {
+    const familyId = Number(req.params.familyId)
+    const memberId = Number(req.params.memberId)
+
+    const membership = await getMembership(familyId, req.user.email)
+    if (!membership || !isParentRole(membership.role))
+      return res.status(403).json({ error: 'Only parents can remove members' })
+
+    const targetResult = await query(
+      'SELECT * FROM family_members WHERE id = $1 AND family_id = $2 LIMIT 1',
+      [memberId, familyId]
+    )
+    const target = targetResult.rows[0]
+    if (!target) return res.status(404).json({ error: 'Member not found' })
+    if (target.user_email === req.user.email)
+      return res.status(400).json({ error: 'Cannot remove yourself' })
+
+    await query('DELETE FROM family_members WHERE id = $1', [memberId])
+    res.json({ success: true })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Failed to remove member' })
+  }
+})
+
 // Update family member
 router.put('/members/:memberId', authMiddleware, async (req, res) => {
   try {

@@ -173,7 +173,7 @@ export default function TasksScreen({ navigation }) {
               style={styles.search}
               value={query}
               onChangeText={setQuery}
-              placeholder="Поиск по названию или описанию…"
+              placeholder="Поиск задач..."
               placeholderTextColor={colors.textMuted}
             />
           </View>
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   searchIcon: { marginRight: 10 },
-  search: { flex: 1, fontSize: 15, color: colors.text, paddingVertical: 14, fontWeight: '600' },
+  search: { flex: 1, fontSize: 13, color: colors.text, paddingVertical: 14, fontWeight: '600' },
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
   mineBtn: {
     flexDirection: 'row',

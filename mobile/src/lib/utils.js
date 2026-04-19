@@ -40,6 +40,25 @@ export const getPointsForStars = stars => Math.max(1, Math.min(5, Number(stars) 
 export const generateInviteCode = () =>
   Math.random().toString(36).substring(2, 8).toUpperCase()
 
+/**
+ * Парсит timestamp с сервера как UTC.
+ * PostgreSQL без настройки возвращает строки без 'Z', из-за чего
+ * JS трактует их как локальное время — время сдвигается.
+ * Эта функция гарантирует корректное UTC-чтение.
+ */
+export const parseDate = (str) => {
+  if (!str) return new Date(NaN)
+  const s = String(str)
+  // Уже есть timezone offset — парсим как есть
+  if (/[Z+\-]\d{0,2}:?\d{0,2}$/.test(s) || s.endsWith('Z')) return new Date(s)
+  // Без timezone — добавляем Z чтобы JS читал как UTC
+  return new Date(s + 'Z')
+}
+
+/** Определяет timezone устройства (например: "Europe/Moscow") */
+export const deviceTimezone = () =>
+  Intl.DateTimeFormat().resolvedOptions().timeZone
+
 export const AVATAR_PALETTE = {
   violet: { bg: '#ede9fe', text: '#6d28d9' },
   orange: { bg: '#ffedd5', text: '#c2410c' },

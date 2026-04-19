@@ -16,8 +16,11 @@ import Welcome      from '@/pages/Welcome'
 
 function AppLayout() {
   return (
-    <div className="min-h-screen bg-background max-w-lg mx-auto relative">
-      <main className="pb-24"><Outlet /></main>
+    <div
+      className="min-h-screen max-w-lg mx-auto relative"
+      style={{ background: 'hsl(136 42% 4%)' }}
+    >
+      <main className="pb-28"><Outlet /></main>
       <BottomNav />
     </div>
   )
@@ -28,8 +31,24 @@ function FamilyGate() {
 
   if (isLoading)
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
+      <div
+        className="fixed inset-0 flex flex-col items-center justify-center gap-5"
+        style={{ background: 'hsl(136 42% 4%)' }}
+      >
+        <div
+          className="w-14 h-14 rounded-2xl flex items-center justify-center"
+          style={{
+            background: 'hsl(136 62% 52% / 0.1)',
+            border: '1px solid hsl(136 62% 52% / 0.2)',
+            boxShadow: '0 0 28px hsl(136 62% 52% / 0.15)',
+          }}
+        >
+          <svg className="w-7 h-7 animate-spin-slow" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="hsl(136 62% 52% / 0.2)" strokeWidth="2" />
+            <path d="M12 3a9 9 0 0 1 9 9" stroke="hsl(136 62% 52%)" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </div>
+        <p className="text-xs font-medium" style={{ color: 'hsl(136 12% 45%)' }}>Загрузка…</p>
       </div>
     )
 

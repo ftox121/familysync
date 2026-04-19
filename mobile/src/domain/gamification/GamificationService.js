@@ -4,11 +4,11 @@
 
 /** Границы уровней по накопленному XP (нижняя граница включительно) */
 export const LEVEL_TIERS = [
-  { minXp: 0, id: 'novice', title: 'Новичок' },
-  { minXp: 50, id: 'responsible', title: 'Ответственный' },
-  { minXp: 150, id: 'organizer', title: 'Мастер порядка' },
-  { minXp: 300, id: 'guru', title: 'Гуру порядка' },
-  { minXp: 500, id: 'legend', title: 'Легенда семьи' },
+  { minXp: 0, id: 'star', title: 'Звёздочка' },
+  { minXp: 50, id: 'sun', title: 'Солнышко' },
+  { minXp: 150, id: 'patron', title: 'Меценат' },
+  { minXp: 300, id: 'hero', title: 'Супергерой' },
+  { minXp: 500, id: 'legend', title: 'Легенда' },
 ]
 
 /**
@@ -17,8 +17,9 @@ export const LEVEL_TIERS = [
  * серия: +5% за каждую задачу подряд в окне 48ч, макс +25%
  */
 export function computeTaskRewardXp(task, context = {}) {
-  const base =
-    task.priority === 'high' ? 20 : task.priority === 'low' ? 5 : 10
+  const base = task.points_reward
+    ? task.points_reward
+    : (task.priority === 'high' ? 20 : task.priority === 'low' ? 5 : 10)
 
   const streak = Math.min(5, context.streakCount ?? 0)
   const streakMultiplier = 1 + streak * 0.05
@@ -64,26 +65,38 @@ export function getTierForXp(totalXp) {
 export const ACHIEVEMENTS = {
   first_task: {
     id: 'first_task',
+    icon: '⭐',
     title: 'Первый шаг',
     description: 'Выполнена первая задача',
+    goal: 1,
+    progressKey: 'totalCompleted',
     predicate: ({ totalCompleted }) => totalCompleted >= 1,
   },
   ten_streak: {
     id: 'ten_streak',
+    icon: '🔥',
     title: 'Десяточка',
     description: '10 задач подряд без провалов серии',
+    goal: 10,
+    progressKey: 'streakCount',
     predicate: ({ streakCount }) => streakCount >= 10,
   },
   fifty_tasks: {
     id: 'fifty_tasks',
+    icon: '🏆',
     title: 'Супер помощник',
     description: '50 выполненных задач',
+    goal: 50,
+    progressKey: 'totalCompleted',
     predicate: ({ totalCompleted }) => totalCompleted >= 50,
   },
   punctual_15: {
     id: 'punctual_15',
+    icon: '⏰',
     title: 'Пунктуальный',
     description: '15 задач в срок подряд',
+    goal: 15,
+    progressKey: 'onTimeStreak',
     predicate: ({ onTimeStreak }) => onTimeStreak >= 15,
   },
 }

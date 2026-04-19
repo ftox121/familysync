@@ -3,7 +3,7 @@ import { MessageCircle, Send } from 'lucide-react-native'
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   StyleSheet,
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
+import { parseDate } from '../lib/utils'
 import { apiClient } from '../api/apiClient'
 import ScreenBackground from '../components/ScreenBackground'
 import { useFamilyContext } from '../context/FamilyContext'
@@ -24,8 +25,9 @@ import { colors, radius, spacing, typography } from '../theme'
 export default function FamilyChatScreen() {
   const { family, members, user, isLoading: familyLoading } = useFamilyContext()
   const insets = useSafeAreaInsets()
-  const { handleScroll, show } = useTabBar()
+  const { handleScroll, show, hide } = useTabBar()
   const [message, setMessage] = useState('')
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
   const listRef = useRef(null)
   const queryClient = useQueryClient()
 
@@ -43,6 +45,27 @@ export default function FamilyChatScreen() {
       queryClient.invalidateQueries({ queryKey: ['family-chat', family?.id] })
     },
   })
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height)
+        hide()
+      }
+    )
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0)
+        show()
+      }
+    )
+    return () => {
+      showSub.remove()
+      hideSub.remove()
+    }
+  }, [hide, show])
 
   useEffect(() => {
     if (messages.length) listRef.current?.scrollToEnd({ animated: true })
@@ -69,13 +92,11 @@ export default function FamilyChatScreen() {
       </ScreenBackground>
     )
 
+  const bottomPadding = Math.max(insets.bottom, 14) + (keyboardHeight > 0 ? 0 : 60)
+
   return (
     <ScreenBackground>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 78 : 0}
-      >
+      <View style={styles.flex}>
         <View style={[styles.container, { paddingTop: insets.top + 10 }]}> 
           <View style={styles.header}>
             <Text style={typography.caption}>Семейное общение</Text>
@@ -90,8 +111,9 @@ export default function FamilyChatScreen() {
             data={messages}
             keyExtractor={item => String(item.id)}
             style={styles.list}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             onScroll={handleScroll}
             scrollEventThrottle={16}
             renderItem={({ item }) => {
@@ -101,7 +123,7 @@ export default function FamilyChatScreen() {
                   {!mine ? <Text style={styles.sender}>{getName(item.user_email)}</Text> : null}
                   <Text style={[styles.msgText, mine && styles.mineText]}>{item.message}</Text>
                   <Text style={[styles.time, mine && styles.mineTime]}>
-                    {format(new Date(item.created_at), 'HH:mm', { locale: ru })}
+                    {format(parseDate(item.created_at), 'HH:mm', { locale: ru })}
                   </Text>
                 </View>
               )
@@ -109,7 +131,7 @@ export default function FamilyChatScreen() {
             ListEmptyComponent={<Text style={styles.empty}>Начните семейный диалог 👋</Text>}
           />
 
-          <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, 14) + 110 }]}> 
+          <View style={[styles.inputRow, { paddingBottom: bottomPadding }]}> 
             <TextInput
               style={styles.input}
               value={message}
@@ -129,7 +151,7 @@ export default function FamilyChatScreen() {
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </ScreenBackground>
   )
 }
@@ -157,7 +179,7 @@ const styles = StyleSheet.create({
   time: { fontSize: 10, color: colors.textMuted, marginTop: 4 },
   mineTime: { color: 'rgba(255,255,255,0.8)' },
   empty: { textAlign: 'center', color: colors.textMuted, marginTop: 40, fontSize: 14 },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingTop: 10, paddingBottom: 14 },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingTop: 10 },
   input: {
     flex: 1,
     backgroundColor: colors.surfaceStrong,

@@ -12,7 +12,8 @@
     "db:add-quest-reward-fields": "node src/db/add-quest-and-reward-fields.js",
     "db:rewards": "node src/db/create-rewards.js",
     "db:task-messages": "node src/db/create-messages.js",
-    "db:family-messages": "node src/db/create-family-messages.js"
+    "db:family-messages": "node src/db/create-family-messages.js",
+    "db:add-streak-fields": "node src/db/add-streak-fields.js"
   },
   "keywords": ["familysync", "backend", "api"],
   "author": "",

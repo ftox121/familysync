@@ -3,7 +3,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { useFamilyContext } from '../context/FamilyContext'
 import AnalyticsScreen from '../screens/AnalyticsScreen'
 import OnboardingScreen from '../screens/OnboardingScreen'
-import TaskDiscussionScreen from '../screens/TaskDiscussionScreen'
 import WelcomeScreen from '../screens/WelcomeScreen'
 import TaskDetailScreen from '../screens/TaskDetailScreen'
 import { colors } from '../theme'
@@ -43,11 +42,6 @@ export default function RootNavigator() {
             <Stack.Screen
               name="TaskDetail"
               component={TaskDetailScreen}
-              options={{ animation: 'slide_from_right' }}
-            />
-            <Stack.Screen
-              name="TaskDiscussion"
-              component={TaskDiscussionScreen}
               options={{ animation: 'slide_from_right' }}
             />
             <Stack.Screen name="Analytics" component={AnalyticsScreen} />

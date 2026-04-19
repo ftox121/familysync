@@ -42,6 +42,7 @@ export function FamilyProvider({ children }) {
     queryKey: ['families', user?.email],
     queryFn: () => apiClient.getFamilies(),
     enabled: !!user?.email,
+    refetchInterval: 5000,
   })
   const family = families[0]
 
@@ -49,6 +50,7 @@ export function FamilyProvider({ children }) {
     queryKey: ['family-members', family?.id],
     queryFn: () => apiClient.getFamilyMembers(family.id),
     enabled: !!family?.id,
+    refetchInterval: 5000,
   })
 
   const currentMembership = members.find(m => m.user_email === user?.email)
@@ -57,12 +59,14 @@ export function FamilyProvider({ children }) {
     queryKey: ['tasks', family?.id],
     queryFn: () => apiClient.getTasks(family.id),
     enabled: !!family?.id,
+    refetchInterval: 5000,
   })
 
   const { data: notifications = [] } = useQuery({
     queryKey: ['notifications', user?.email],
     queryFn: () => apiClient.getNotifications(),
     enabled: !!user?.email,
+    refetchInterval: 5000,
   })
 
   const isParent =

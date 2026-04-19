@@ -181,6 +181,12 @@ class ApiClient {
     })
   }
 
+  async removeFamilyMember(familyId, memberId) {
+    return this.request(`/families/${familyId}/members/${memberId}`, {
+      method: 'DELETE',
+    })
+  }
+
   async joinFamilyByCode(data) {
     return this.request('/families/join', {
       method: 'POST',

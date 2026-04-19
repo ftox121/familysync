@@ -1,14 +1,20 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { ArrowLeft, CheckCircle2, Clock, MessageCircle, Sparkles, Star, Trash2 } from 'lucide-react-native'
+import DateTimePicker from '@react-native-community/datetimepicker'
+import { Picker } from '@react-native-picker/picker'
+import { parseDate } from '../lib/utils'
+import { ArrowLeft, CheckCircle2, Clock, Pencil, Sparkles, Star, Trash2, X } from 'lucide-react-native'
 import {
   ActivityIndicator,
   Alert,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -20,6 +26,7 @@ import ScreenBackground from '../components/ScreenBackground'
 import { useFamilyContext } from '../context/FamilyContext'
 import { CATEGORY_LABELS, PRIORITY_LABELS, STATUS_LABELS } from '../lib/utils'
 import { showError, showSuccess } from '../lib/toast'
+import { getStreakData, saveStreakData } from '../lib/streakStorage'
 import { colors, radius, shadows, spacing } from '../theme'
 
 function parseAchievements(raw) {
@@ -45,6 +52,14 @@ export default function TaskDetailScreen({ navigation, route }) {
     isLoading: familyLoading,
   } = useFamilyContext()
   const [loading, setLoading] = useState(false)
+  const [editVisible, setEditVisible] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDesc, setEditDesc] = useState('')
+  const [editPriority, setEditPriority] = useState('medium')
+  const [editDueDate, setEditDueDate] = useState('')
+  const [editAssignedTo, setEditAssignedTo] = useState('')
+  const [editShowDate, setEditShowDate] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
   const insets = useSafeAreaInsets()
 
   const task = tasks.find(t => t.id === taskId)
@@ -59,6 +74,38 @@ export default function TaskDetailScreen({ navigation, route }) {
   const canDelete = FamilyAccessPolicy.canDeleteTask(role)
   const canDirectComplete = isParent || role === 'grandparent' || role === 'other'
   const canConfirm = isParent || role === 'grandparent' || role === 'other'
+
+  const childMembers = members.filter(m => m.role === 'child')
+
+  const openEdit = () => {
+    setEditTitle(task?.title ?? '')
+    setEditDesc(task?.description ?? '')
+    setEditPriority(task?.priority ?? 'medium')
+    setEditDueDate(task?.due_date ?? '')
+    setEditAssignedTo(task?.assigned_to ?? '')
+    setEditVisible(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editTitle.trim()) return
+    setEditSaving(true)
+    try {
+      await apiClient.updateTask(task.id, {
+        title: editTitle.trim(),
+        description: editDesc.trim(),
+        priority: editPriority,
+        due_date: editDueDate || null,
+        assigned_to: editAssignedTo || null,
+      })
+      refresh()
+      setEditVisible(false)
+      showSuccess('Задача обновлена')
+    } catch (e) {
+      showError(e?.message || 'Не удалось сохранить')
+    } finally {
+      setEditSaving(false)
+    }
+  }
 
   if (familyLoading)
     return (
@@ -85,29 +132,37 @@ export default function TaskDetailScreen({ navigation, route }) {
   const applyCompletionRewards = async (assigneeMember, completedAtIso) => {
     if (!assigneeMember || !task.assigned_to) return
 
-    const streakBefore = assigneeMember.streak_count ?? 0
+    // Серия хранится локально в AsyncStorage (не требует дополнительных колонок в БД)
+    const streakData = await getStreakData(task.assigned_to)
+    const streakBefore = streakData.streakCount
     const taskWithDone = { ...task, status: 'completed', completed_at: completedAtIso }
     const xpDetail = GamificationService.computeTaskRewardXp(taskWithDone, {
       streakCount: streakBefore,
     })
     const newStreak = GamificationService.nextStreakCount(
       streakBefore,
-      assigneeMember.last_task_completed_at
+      streakData.lastCompletedAt
     )
     const wasOnTime = GamificationService.wasTaskCompletedOnTime(taskWithDone)
-    const newOnTime = GamificationService.nextOnTimeStreak(
-      assigneeMember.on_time_streak ?? 0,
-      wasOnTime
-    )
+    const newOnTime = GamificationService.nextOnTimeStreak(streakData.onTimeStreak, wasOnTime)
+
+    // Сохраняем серию локально
+    await saveStreakData(task.assigned_to, {
+      streakCount: newStreak,
+      onTimeStreak: newOnTime,
+      lastCompletedAt: completedAtIso,
+    })
+
     const nextTasksDone = (assigneeMember.tasks_completed ?? 0) + 1
     const prevAch = parseAchievements(assigneeMember.achievements_json)
     const unlocked = GamificationService.evaluateNewAchievements(
-      { ...assigneeMember, tasks_completed: nextTasksDone, achievements_json: assigneeMember.achievements_json },
+      { ...assigneeMember, tasks_completed: nextTasksDone },
       { streakCount: newStreak, onTimeStreak: newOnTime }
     )
     const mergedAch = [...prevAch, ...unlocked.map(a => a.id)]
     const newPoints = (assigneeMember.points ?? 0) + xpDetail.total
 
+    // Обновляем на сервере только поля, которые точно есть в БД
     const memberPayload = {
       points: newPoints,
       tasks_completed: nextTasksDone,
@@ -117,15 +172,24 @@ export default function TaskDetailScreen({ navigation, route }) {
 
     await apiClient.updateFamilyMember(assigneeMember.id, memberPayload)
 
-    const notificationPayload = {
-      family_id: currentMembership.family_id ?? currentMembership.family_id,
+    if (unlocked.length > 0) {
+      const achNames = unlocked.map(a => `«${a.title}»`).join(', ')
+      await apiClient.createNotification({
+        family_id: currentMembership.family_id,
+        user_email: task.assigned_to,
+        title: '🏆 Новое достижение!',
+        message: `Разблокировано: ${achNames}`,
+        type: 'achievement',
+      })
+    }
+
+    await apiClient.createNotification({
+      family_id: currentMembership.family_id,
       user_email: task.assigned_to,
       title: 'Задача выполнена!',
       message: `+${xpDetail.total} XP за «${task.title}» (${GamificationService.getTierForXp(newPoints).tier.title})`,
       type: 'achievement',
-    }
-
-    await apiClient.createNotification(notificationPayload)
+    })
   }
 
   const notifyAdultsReview = async () => {
@@ -291,13 +355,20 @@ export default function TaskDetailScreen({ navigation, route }) {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.h1}>Детали задачи</Text>
-        {canDelete ? (
-          <Pressable onPress={handleDelete} disabled={loading} hitSlop={12}>
-            <Trash2 size={22} color={colors.red} />
-          </Pressable>
-        ) : (
-          <View style={{ width: 22 }} />
-        )}
+        <View style={styles.topActions}>
+          {isParent && task?.status !== 'completed' && (
+            <Pressable onPress={openEdit} disabled={loading} hitSlop={12} style={styles.topActionBtn}>
+              <Pencil size={18} color={colors.primary} />
+            </Pressable>
+          )}
+          {canDelete ? (
+            <Pressable onPress={handleDelete} disabled={loading} hitSlop={12} style={styles.topActionBtn}>
+              <Trash2 size={20} color={colors.red} />
+            </Pressable>
+          ) : (
+            <View style={{ width: 20 }} />
+          )}
+        </View>
       </View>
 
       <View style={[styles.card, shadows.card]}>
@@ -321,7 +392,7 @@ export default function TaskDetailScreen({ navigation, route }) {
             <View style={[styles.badgeOutline, styles.badgeRow]}>
               <Clock size={12} color={colors.textMuted} />
               <Text style={styles.badgeOutlineText}>
-                {format(new Date(task.due_date), 'd MMM yyyy', { locale: ru })}
+                {format(parseDate(task.due_date), 'd MMM yyyy', { locale: ru })}
               </Text>
             </View>
           )}
@@ -454,25 +525,112 @@ export default function TaskDetailScreen({ navigation, route }) {
         {(task.completed_at || (task.status === 'completed' ? task.updated_at : null)) && (
           <Text style={styles.doneAt}>
             Выполнено:{' '}
-            {format(new Date(task.completed_at || task.updated_at), 'd MMMM yyyy, HH:mm', { locale: ru })}
+            {format(parseDate(task.completed_at || task.updated_at), 'd MMMM yyyy, HH:mm', { locale: ru })}
           </Text>
         )}
 
-        <Pressable
-          style={({ pressed }) => [styles.chatLink, pressed && { opacity: 0.92 }]}
-          onPress={() => navigation.navigate('TaskDiscussion', { taskId: task.id, title: task.title })}
-        >
-          <View style={styles.chatLinkIcon}>
-            <MessageCircle size={18} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.chatLinkTitle}>Обсуждение задачи</Text>
-            <Text style={styles.chatLinkText}>Открыть отдельный чат по этой задаче</Text>
-          </View>
-          <Text style={styles.chatLinkArrow}>›</Text>
-        </Pressable>
       </View>
       </ScrollView>
+
+      <Modal visible={editVisible} animationType="slide" transparent onRequestClose={() => setEditVisible(false)}>
+        <Pressable style={styles.editOverlay} onPress={() => setEditVisible(false)}>
+          <Pressable style={[styles.editSheet, { paddingBottom: insets.bottom + 24 }]} onPress={e => e.stopPropagation()}>
+            <View style={styles.editHeader}>
+              <Text style={styles.editHeaderTitle}>Редактировать задачу</Text>
+              <Pressable onPress={() => setEditVisible(false)} hitSlop={12}>
+                <X size={22} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.editLabel}>Название *</Text>
+              <TextInput
+                style={styles.editInput}
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholder="Название задачи"
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Text style={styles.editLabel}>Описание</Text>
+              <TextInput
+                style={[styles.editInput, styles.editTextarea]}
+                value={editDesc}
+                onChangeText={setEditDesc}
+                placeholder="Детали…"
+                placeholderTextColor={colors.textMuted}
+                multiline
+              />
+
+              <Text style={styles.editLabel}>Приоритет</Text>
+              <View style={styles.editPickerWrap}>
+                <Picker selectedValue={editPriority} onValueChange={setEditPriority}>
+                  {Object.entries(PRIORITY_LABELS).map(([k, v]) => (
+                    <Picker.Item key={k} label={v} value={k} />
+                  ))}
+                </Picker>
+              </View>
+
+              {!task?.is_quest && (
+                <>
+                  <Text style={styles.editLabel}>Назначить</Text>
+                  <View style={styles.editPickerWrap}>
+                    <Picker selectedValue={editAssignedTo} onValueChange={setEditAssignedTo}>
+                      <Picker.Item label="— не назначено —" value="" />
+                      {childMembers.map(m => (
+                        <Picker.Item key={m.id} label={m.display_name} value={m.user_email} />
+                      ))}
+                    </Picker>
+                  </View>
+                </>
+              )}
+
+              <Text style={styles.editLabel}>Дедлайн</Text>
+              <Pressable style={styles.editDateBtn} onPress={() => setEditShowDate(true)}>
+                <Clock size={16} color={colors.primary} />
+                <Text style={styles.editDateText}>
+                  {editDueDate
+                    ? format(new Date(editDueDate + 'T12:00:00'), 'd MMMM yyyy', { locale: ru })
+                    : 'Выбрать дату'}
+                </Text>
+                {editDueDate ? (
+                  <Pressable onPress={() => setEditDueDate('')} hitSlop={10}>
+                    <X size={14} color={colors.textMuted} />
+                  </Pressable>
+                ) : null}
+              </Pressable>
+              {editShowDate && (
+                <DateTimePicker
+                  value={editDueDate ? new Date(editDueDate + 'T12:00:00') : new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, date) => {
+                    if (Platform.OS === 'android') setEditShowDate(false)
+                    if (event?.type === 'dismissed') return
+                    if (date) setEditDueDate(format(date, 'yyyy-MM-dd'))
+                  }}
+                />
+              )}
+              {Platform.OS === 'ios' && editShowDate && (
+                <Pressable style={styles.editDoneDate} onPress={() => setEditShowDate(false)}>
+                  <Text style={styles.editDoneDateText}>Готово</Text>
+                </Pressable>
+              )}
+
+              <Pressable
+                style={[styles.editSaveBtn, editSaving && { opacity: 0.6 }]}
+                onPress={handleSaveEdit}
+                disabled={editSaving}
+              >
+                {editSaving
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.editSaveBtnText}>Сохранить изменения</Text>
+                }
+              </Pressable>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenBackground>
   )
 }
@@ -644,29 +802,48 @@ const styles = StyleSheet.create({
   ctaDisabled: { opacity: 0.6 },
   ctaText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   doneAt: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 8 },
-  chatLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 8,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: colors.primaryMuted,
-    borderWidth: 1,
-    borderColor: colors.outline,
-  },
-  chatLinkIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surfaceStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chatLinkTitle: { fontSize: 14, fontWeight: '800', color: colors.text },
-  chatLinkText: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  chatLinkArrow: { fontSize: 24, color: colors.textMuted },
   missing: { fontSize: 16, color: colors.textSecondary, marginBottom: 16 },
   backLink: { paddingVertical: 12, paddingHorizontal: 20 },
   backLinkText: { color: colors.primary, fontWeight: '600' },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  topActionBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: colors.muted, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.outline,
+  },
+  // Edit modal
+  editOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  editSheet: {
+    backgroundColor: colors.surfaceStrong,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, maxHeight: '90%',
+  },
+  editHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20,
+  },
+  editHeaderTitle: { fontSize: 18, fontWeight: '800', color: colors.text },
+  editLabel: { fontSize: 11, fontWeight: '700', color: colors.textMuted, marginBottom: 6, letterSpacing: 0.4 },
+  editInput: {
+    borderWidth: 1.5, borderColor: colors.outline, borderRadius: radius.md,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 15, color: colors.text, backgroundColor: colors.muted, marginBottom: 16,
+  },
+  editTextarea: { minHeight: 80, textAlignVertical: 'top' },
+  editPickerWrap: {
+    borderWidth: 1.5, borderColor: colors.outline, borderRadius: radius.md,
+    marginBottom: 16, overflow: 'hidden', backgroundColor: colors.muted,
+  },
+  editDateBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1.5, borderColor: colors.outline, borderRadius: radius.md,
+    paddingHorizontal: 14, paddingVertical: 12, backgroundColor: colors.muted, marginBottom: 16,
+  },
+  editDateText: { flex: 1, fontSize: 15, color: colors.text },
+  editDoneDate: { alignSelf: 'flex-end', padding: 8, marginBottom: 8 },
+  editDoneDateText: { color: colors.primary, fontWeight: '700' },
+  editSaveBtn: {
+    backgroundColor: colors.primary, borderRadius: radius.md,
+    paddingVertical: 14, alignItems: 'center', marginTop: 4,
+  },
+  editSaveBtnText: { fontSize: 16, fontWeight: '800', color: '#fff' },
 })

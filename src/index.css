@@ -1,24 +1,259 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --border: 240 5.9% 90%;
-    --primary: 262 60% 55%;
-    --primary-foreground: 0 0% 100%;
-    --accent: 38 85% 52%;
-    --accent-foreground: 0 0% 100%;
-    --success: 142 50% 40%;
-    --destructive: 0 72% 55%;
-    --radius: 0.75rem;
+    /* ── Forest Night Palette ── */
+    --background:       136 42% 4%;      /* #060e08  near-black forest */
+    --foreground:       130 18% 88%;     /* #daeadb  cool off-white     */
+    --card:             136 38% 6.5%;    /* #0b1810  deep card surface  */
+    --card-foreground:  130 18% 88%;
+    --surface:          136 32% 9%;      /* #111e13  slightly elevated  */
+    --muted:            136 26% 11%;     /* #131f15  muted bg           */
+    --muted-foreground: 136 12% 48%;     /* ~#6b8a6d muted text         */
+    --border:           136 28% 14%;     /* #172119  subtle green line  */
+    --primary:          136 62% 52%;     /* #3dc85e  vivid emerald      */
+    --primary-foreground: 136 40% 5%;
+    --accent:           42  88% 58%;     /* #f5c030  warm amber         */
+    --accent-foreground: 42 40% 8%;
+    --radius: 0.875rem;
   }
-  * { border-color: hsl(var(--border)); }
-  body { background: hsl(var(--background)); color: hsl(var(--foreground)); font-family: system-ui, sans-serif; }
+
+  * { border-color: hsl(var(--border)); box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'DM Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100dvh;
+  }
+
+  /* Subtle noise grain over the whole app */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.028;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+  }
+
+  h1, h2 { font-family: 'Playfair Display', Georgia, serif; }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--primary) / 0.28); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.5); }
+
+  /* Remove default date input styling on dark bg */
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7) sepia(1) hue-rotate(90deg); }
+
+  /* Select arrow color fix */
+  select option { background: hsl(var(--surface)); color: hsl(var(--foreground)); }
+}
+
+@layer components {
+
+  /* ─── Card variants ─────────────────────────────────── */
+  .fs-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+  }
+
+  .fs-card-interactive {
+    @apply fs-card;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.22s ease,
+                border-color 0.22s ease;
+    cursor: pointer;
+  }
+  /* Inner shimmer sweep on hover */
+  .fs-card-interactive::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.06), transparent);
+    transition: none;
+    pointer-events: none;
+  }
+  .fs-card-interactive:hover {
+    border-color: hsl(var(--primary) / 0.32);
+    box-shadow: 0 6px 28px rgba(0,0,0,0.45),
+                0 0 0 1px hsl(var(--primary) / 0.12),
+                0 0 20px hsl(var(--primary) / 0.12);
+    transform: translateY(-2px);
+  }
+  .fs-card-interactive:hover::before {
+    left: 150%;
+    transition: left 0.55s ease;
+  }
+  .fs-card-interactive:active { transform: translateY(-1px); }
+
+  /* ─── Buttons ─────────────────────────────────────── */
+  .btn-emerald {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: calc(var(--radius) * 0.9);
+    border: 1px solid hsl(var(--primary) / 0.4);
+    background: linear-gradient(135deg, hsl(136 62% 48%), hsl(162 65% 42%));
+    color: hsl(136 40% 5%);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    cursor: pointer;
+  }
+  .btn-emerald::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.18s;
+  }
+  .btn-emerald:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px hsl(var(--primary) / 0.45), 0 1px 0 rgba(255,255,255,0.08) inset;
+  }
+  .btn-emerald:hover::after { opacity: 1; }
+  .btn-emerald:active { transform: translateY(0); box-shadow: none; }
+  .btn-emerald:disabled { opacity: 0.5; pointer-events: none; }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    padding: 0.625rem 1.125rem;
+    border-radius: calc(var(--radius) * 0.9);
+    border: 1px solid hsl(var(--border));
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+    cursor: pointer;
+  }
+  .btn-ghost:hover {
+    background: hsl(var(--muted));
+    border-color: hsl(var(--primary) / 0.25);
+    color: hsl(var(--foreground));
+    box-shadow: 0 0 12px hsl(var(--primary) / 0.1);
+  }
+
+  /* ─── Filter pills ───────────────────────────────── */
+  .filter-pill {
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid hsl(var(--border));
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--muted));
+    transition: transform 0.15s ease, border-color 0.15s, color 0.15s, box-shadow 0.15s, background 0.15s;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .filter-pill:hover {
+    border-color: hsl(var(--primary) / 0.35);
+    color: hsl(var(--primary));
+    transform: scale(1.04);
+    background: hsl(var(--primary) / 0.08);
+  }
+  .filter-pill.active {
+    border-color: hsl(var(--primary) / 0.55);
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.12);
+    box-shadow: 0 0 12px hsl(var(--primary) / 0.18);
+  }
+
+  /* ─── Form inputs ─────────────────────────────────── */
+  .fs-input {
+    width: 100%;
+    padding: 0.65rem 0.875rem;
+    border-radius: calc(var(--radius) * 0.85);
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+    font-size: 0.875rem;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  }
+  .fs-input::placeholder { color: hsl(var(--muted-foreground)); }
+  .fs-input:hover { border-color: hsl(var(--primary) / 0.28); }
+  .fs-input:focus {
+    border-color: hsl(var(--primary) / 0.6);
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
+    background: hsl(var(--surface));
+  }
+
+  /* ─── Progress bar ────────────────────────────────── */
+  .progress-track {
+    width: 100%;
+    height: 5px;
+    background: hsl(var(--muted));
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, hsl(136 62% 48%), hsl(162 65% 55%));
+    box-shadow: 0 0 8px hsl(var(--primary) / 0.5);
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* ─── Badge / status chip ─────────────────────────── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  /* ─── Section label ───────────────────────────────── */
+  .label-xs {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* ─── Glow ring (avatar hover / active nav) ────────── */
+  .ring-glow {
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35), 0 0 14px hsl(var(--primary) / 0.2);
+  }
+}
+
+@layer utilities {
+  .text-glow { text-shadow: 0 0 18px hsl(var(--primary) / 0.55); }
+  .text-amber-glow { text-shadow: 0 0 16px hsl(var(--accent) / 0.6); }
+  .bg-surface { background: hsl(var(--surface)); }
+  .border-dim { border-color: hsl(var(--border)); }
 }

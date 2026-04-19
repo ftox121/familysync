@@ -1,4 +1,5 @@
 import { format } from 'date-fns'
+import { parseDate } from '../lib/utils'
 import { ru } from 'date-fns/locale'
 import {
   Bell,
@@ -131,7 +132,7 @@ export default function NotificationsScreen() {
                 </Text>
                 <Text style={styles.time}>
                   {notif.created_date
-                    ? format(new Date(notif.created_date), 'd MMM, HH:mm', { locale: ru })
+                    ? format(parseDate(notif.created_date), 'd MMM, HH:mm', { locale: ru })
                     : ''}
                 </Text>
               </View>
