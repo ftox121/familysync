@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as Clipboard from 'expo-clipboard'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BarChart3, Check, Clock3, Copy, LogOut, Pencil, Sparkles, Trash2, Users, X } from 'lucide-react-native'
+import { BarChart3, Check, Copy, LogOut, Pencil, Sparkles, Trash2, Users, X } from 'lucide-react-native'
 import {
   ActivityIndicator,
   Alert,
@@ -78,23 +78,9 @@ export default function ProfileScreen({ navigation }) {
   })()
   const myTasks = tasks.filter(t => t.assigned_to === user?.email)
   const myCompleted = myTasks.filter(t => t.status === 'completed').length
-  const activeArtifacts = rewardClaims.filter(claim => {
-    if (claim.user_email !== user?.email) return false
-    if (claim.type !== 'artifact') return false
-    if (claim.status !== 'active') return false
-    if (!claim.active_until) return false
-    return new Date(claim.active_until).getTime() > Date.now()
-  })
-
-  const formatRemaining = iso => {
-    const diff = new Date(iso).getTime() - Date.now()
-    if (diff <= 0) return 'Истек'
-    const totalMinutes = Math.ceil(diff / 60000)
-    const hours = Math.floor(totalMinutes / 60)
-    const minutes = totalMinutes % 60
-    if (hours <= 0) return `${minutes} мин`
-    return `${hours} ч ${minutes} мин`
-  }
+  const activeRewards = rewardClaims.filter(claim =>
+    claim.user_email === user?.email && (claim.status === 'approved' || claim.status === 'active')
+  )
 
   const handleCopy = async () => {
     const code = family?.invite_code ?? ''
@@ -210,7 +196,7 @@ export default function ProfileScreen({ navigation }) {
             </View>
             <View style={styles.levelRow}>
               <Text style={styles.levelLabel}>«{tierVm.tier.title}»</Text>
-              <Text style={styles.points}>⭐ {currentMembership?.points ?? 0} XP</Text>
+              <Text style={styles.points}>{tierVm.tier.icon} {currentMembership?.points ?? 0} XP</Text>
             </View>
             <View style={styles.track}>
               <LinearGradient
@@ -305,33 +291,32 @@ export default function ProfileScreen({ navigation }) {
         <View style={styles.artifactsTop}>
           <View style={styles.artifactsTitleRow}>
             <Sparkles size={18} color={colors.primary} />
-            <Text style={styles.artifactsTitle}>Активные артефакты</Text>
+            <Text style={styles.artifactsTitle}>Активные награды</Text>
           </View>
           <View style={styles.artifactsCountPill}>
-            <Text style={styles.artifactsCountText}>{activeArtifacts.length}</Text>
+            <Text style={styles.artifactsCountText}>{activeRewards.length}</Text>
           </View>
         </View>
 
-        {activeArtifacts.length === 0 ? (
+        {activeRewards.length === 0 ? (
           <View style={styles.artifactsEmpty}>
-            <Text style={styles.artifactsEmptyTitle}>Сейчас нет активных эффектов</Text>
+            <Text style={styles.artifactsEmptyTitle}>Нет активных наград</Text>
             <Text style={styles.artifactsEmptyText}>
-              Когда вы активируете артефакт, он появится здесь с таймером действия.
+              Получённые и одобренные родителем награды появятся здесь.
             </Text>
           </View>
         ) : (
           <View style={styles.artifactsList}>
-            {activeArtifacts.map(claim => (
+            {activeRewards.map(claim => (
               <View key={claim.id} style={styles.artifactRow}>
                 <View style={styles.artifactIconWrap}>
-                  <Text style={styles.artifactIcon}>{claim.icon || '🪄'}</Text>
+                  <Text style={styles.artifactIcon}>{claim.icon || '🎁'}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.artifactName}>{claim.title}</Text>
-                  <View style={styles.artifactMetaRow}>
-                    <Clock3 size={12} color={colors.primary} />
-                    <Text style={styles.artifactMetaText}>Осталось: {formatRemaining(claim.active_until)}</Text>
-                  </View>
+                  <Text style={styles.artifactMetaText}>
+                    {claim.type === 'privilege' ? 'Привилегия' : 'Предмет'} · активна
+                  </Text>
                 </View>
               </View>
             ))}
@@ -563,18 +548,18 @@ const styles = StyleSheet.create({
   codeLabel: { fontSize: 10, color: colors.textMuted, letterSpacing: 0.5, fontWeight: '600' },
   code: { fontSize: 20, fontWeight: '700', letterSpacing: 4, marginTop: 4 },
   copyBtn: { padding: 8 },
-  members: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  members: { flexDirection: 'column', gap: 8 },
   memberChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
     backgroundColor: colors.muted,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 12,
   },
-  memberName: { fontSize: 12, fontWeight: '700', color: colors.text },
-  memberRole: { fontSize: 10, color: colors.textMuted },
+  memberName: { fontSize: 14, fontWeight: '700', color: colors.text },
+  memberRole: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   removeMemberBtn: {
     width: 28,
     height: 28,

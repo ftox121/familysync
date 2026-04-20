@@ -185,6 +185,25 @@ router.post('/:id/redeem', authMiddleware, async (req, res) => {
   }
 })
 
+// Delete reward (parents only)
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const rewardResult = await query('SELECT * FROM rewards WHERE id = $1 LIMIT 1', [req.params.id])
+    const reward = rewardResult.rows[0]
+    if (!reward) return res.status(404).json({ error: 'Reward not found' })
+
+    const membership = await getMembershipByFamily(reward.family_id, req.user.email)
+    if (!membership || !['parent', 'grandparent'].includes(membership.role))
+      return res.status(403).json({ error: 'Only parents can delete rewards' })
+
+    await query('DELETE FROM rewards WHERE id = $1', [req.params.id])
+    res.json({ success: true })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Failed to delete reward' })
+  }
+})
+
 // Approve/reject claim (parents only)
 router.put('/claims/:id', authMiddleware, async (req, res) => {
   try {

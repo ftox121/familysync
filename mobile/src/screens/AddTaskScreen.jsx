@@ -4,7 +4,7 @@ import { Picker } from '@react-native-picker/picker'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { LinearGradient } from 'expo-linear-gradient'
-import { ArrowLeft, Calendar, Check, Sparkles, Star } from 'lucide-react-native'
+import { ArrowLeft, Calendar, Check, Clock, Sparkles, Zap } from 'lucide-react-native'
 import {
   KeyboardAvoidingView,
   Modal,
@@ -22,7 +22,7 @@ import AnimalAvatarPicker from '../components/AnimalAvatarPicker'
 import ScreenBackground from '../components/ScreenBackground'
 import { useFamilyContext } from '../context/FamilyContext'
 import { useSmartAssignRecommendation } from '../hooks/useSmartAssignRecommendation'
-import { CATEGORY_LABELS, PRIORITY_LABELS, getPointsForStars } from '../lib/utils'
+import { CATEGORY_LABELS, PRIORITY_LABELS } from '../lib/utils'
 import { showError, showSuccess } from '../lib/toast'
 import { colors, gradients, radius, shadows, spacing, typography } from '../theme'
 
@@ -33,20 +33,22 @@ export default function AddTaskScreen({ navigation }) {
   const [description, setDescription] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
   const [priority, setPriority] = useState('medium')
-  const [rewardStars, setRewardStars] = useState(2)
+  const [rewardXp, setRewardXp] = useState(20)
   const [isQuest, setIsQuest] = useState(false)
   const [questParticipants, setQuestParticipants] = useState([])
   const [minParticipants, setMinParticipants] = useState('2')
   const [rewardMultiplier, setRewardMultiplier] = useState('1.5')
   const [category, setCategory] = useState('other')
   const [dueDate, setDueDate] = useState('')
+  const [dueTime, setDueTime] = useState('')
   const [showDate, setShowDate] = useState(false)
+  const [showTime, setShowTime] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showChildModal, setShowChildModal] = useState(false)
   const [childName, setChildName] = useState('')
   const [childAnimal, setChildAnimal] = useState('cat')
 
-  const points = getPointsForStars(rewardStars)
+  const points = rewardXp
   const assignVm = useSmartAssignRecommendation(members, tasks)
   const bestEmail = assignVm.bestCandidate?.member.userEmail
   const childMembers = members.filter(m => m.role === 'child')
@@ -90,6 +92,13 @@ export default function AddTaskScreen({ navigation }) {
       showError('Выберите участников квеста')
       return
     }
+    if (dueDate) {
+      const dueDatetime = new Date(dueDate + 'T' + (dueTime || '23:59') + ':00')
+      if (dueDatetime < new Date()) {
+        showError('Дедлайн не может быть в прошлом')
+        return
+      }
+    }
     setLoading(true)
     try {
       const assignee = members.find(m => m.user_email === assignedTo)
@@ -103,7 +112,7 @@ export default function AddTaskScreen({ navigation }) {
         status: 'pending',
         priority,
         category,
-        due_date: dueDate || null,
+        due_date: dueDate ? (dueTime ? dueDate + 'T' + dueTime + ':00' : dueDate) : null,
         points_reward: points,
         is_quest: isQuest,
         min_participants: isQuest ? Number(minParticipants || 1) : 1,
@@ -140,7 +149,8 @@ export default function AddTaskScreen({ navigation }) {
       setDescription('')
       setAssignedTo('')
       setDueDate('')
-      setRewardStars(2)
+      setDueTime('')
+      setRewardXp(20)
       setIsQuest(false)
       setQuestParticipants([])
       setMinParticipants('2')
@@ -151,7 +161,8 @@ export default function AddTaskScreen({ navigation }) {
     }
   }
 
-  const dateValue = dueDate ? new Date(dueDate + 'T12:00:00') : new Date()
+  const dateValue = dueDate ? new Date(dueDate + 'T' + (dueTime || '12:00') + ':00') : new Date()
+  const timeValue = dueTime ? new Date('2000-01-01T' + dueTime + ':00') : new Date()
 
   if (!isParent)
     return (
@@ -218,27 +229,28 @@ export default function AddTaskScreen({ navigation }) {
               multiline
             />
 
-            <View style={styles.row}>
-              <View style={styles.half}>
-                <Text style={styles.label}>Категория</Text>
-                <View style={styles.pickerWrap}>
-                  <Picker selectedValue={category} onValueChange={setCategory}>
-                    {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                      <Picker.Item key={k} label={v} value={k} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-              <View style={styles.half}>
-                <Text style={styles.label}>Приоритет</Text>
-                <View style={styles.pickerWrap}>
-                  <Picker selectedValue={priority} onValueChange={setPriority}>
-                    {Object.entries(PRIORITY_LABELS).map(([k, v]) => (
-                      <Picker.Item key={k} label={v} value={k} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
+            <Text style={styles.label}>Категория</Text>
+            <View style={styles.pickerWrap}>
+              <Picker selectedValue={category} onValueChange={setCategory}>
+                {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                  <Picker.Item key={k} label={v} value={k} />
+                ))}
+              </Picker>
+            </View>
+
+            <Text style={styles.label}>Приоритет</Text>
+            <View style={styles.priorityRow}>
+              {Object.entries(PRIORITY_LABELS).map(([k, v]) => (
+                <Pressable
+                  key={k}
+                  onPress={() => setPriority(k)}
+                  style={[styles.priorityChip, priority === k && styles.priorityChipActive(k)]}
+                >
+                  <Text style={[styles.priorityChipText, priority === k && styles.priorityChipTextActive]}>
+                    {v}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
 
             <Text style={styles.label}>Формат задачи</Text>
@@ -329,7 +341,7 @@ export default function AddTaskScreen({ navigation }) {
               <View style={styles.pickerWrap}>
                 <Picker selectedValue={assignedTo} onValueChange={setAssignedTo}>
                   <Picker.Item label="— не назначено —" value="" />
-                  {childMembers.map(m => (
+                  {members.map(m => (
                     <Picker.Item key={m.id} label={m.display_name} value={m.user_email} />
                   ))}
                 </Picker>
@@ -364,31 +376,63 @@ export default function AddTaskScreen({ navigation }) {
               </Pressable>
             ) : null}
 
-            <Text style={styles.label}>Награда за выполнение</Text>
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map(star => {
-                const active = star <= rewardStars
-                return (
-                  <Pressable
-                    key={star}
-                    onPress={() => setRewardStars(star)}
-                    style={({ pressed }) => [styles.starBtn, pressed && { opacity: 0.85 }]}
-                  >
-                    <Star
-                      size={24}
-                      color={active ? colors.priorityMed : colors.textMuted}
-                      fill={active ? colors.priorityMed : 'transparent'}
-                    />
+            {dueDate ? (
+              <>
+                <Text style={styles.label}>Время дедлайна</Text>
+                <Pressable style={styles.dateBtn} onPress={() => setShowTime(true)}>
+                  <Clock size={18} color={colors.primary} />
+                  <Text style={styles.dateBtnText}>
+                    {dueTime ? format(timeValue, 'HH:mm') : 'Выберите время (необязательно)'}
+                  </Text>
+                </Pressable>
+                {showTime ? (
+                  <DateTimePicker
+                    value={timeValue}
+                    mode="time"
+                    is24Hour
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(event, date) => {
+                      if (Platform.OS === 'android') setShowTime(false)
+                      if (event?.type === 'dismissed') return
+                      if (date) setDueTime(format(date, 'HH:mm'))
+                    }}
+                  />
+                ) : null}
+                {Platform.OS === 'ios' && showTime ? (
+                  <Pressable style={styles.doneDate} onPress={() => setShowTime(false)}>
+                    <Text style={styles.doneDateText}>Готово</Text>
                   </Pressable>
-                )
-              })}
-            </View>
+                ) : null}
+              </>
+            ) : null}
 
-            <View style={styles.reward}>
-              <Star size={18} color={colors.priorityMed} />
-              <Text style={styles.rewardText}>
-                Награда за выполнение: <Text style={styles.rewardBold}>{rewardStars} ★ • {points} XP</Text>
-              </Text>
+            <Text style={styles.label}>Награда за выполнение (XP)</Text>
+            <View style={styles.xpRow}>
+              {[10, 20, 30, 50, 100].map(v => (
+                <Pressable
+                  key={v}
+                  onPress={() => setRewardXp(v)}
+                  style={[styles.xpChip, rewardXp === v && styles.xpChipActive]}
+                >
+                  <Text style={[styles.xpChipText, rewardXp === v && styles.xpChipTextActive]}>{v}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.xpInputRow}>
+              <Zap size={16} color={colors.primary} />
+              <TextInput
+                style={styles.xpInput}
+                value={String(rewardXp)}
+                onChangeText={v => {
+                  const n = parseInt(v.replace(/[^0-9]/g, ''), 10)
+                  if (!isNaN(n) && n >= 1 && n <= 999) setRewardXp(n)
+                  else if (v === '') setRewardXp(1)
+                }}
+                keyboardType="number-pad"
+                maxLength={3}
+                selectTextOnFocus
+              />
+              <Text style={styles.xpInputLabel}>XP</Text>
             </View>
 
             <Pressable onPress={handleSubmit} disabled={loading} style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}>
@@ -473,6 +517,35 @@ const styles = StyleSheet.create({
   textarea: { minHeight: 100, textAlignVertical: 'top' },
   row: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
+  priorityRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  priorityChip: {
+    flex: 1, alignItems: 'center', paddingVertical: 10,
+    borderRadius: radius.md, borderWidth: 1.5,
+    borderColor: colors.outline, backgroundColor: colors.muted,
+  },
+  priorityChipActive: k => ({
+    borderColor: k === 'high' ? colors.red : k === 'low' ? colors.green : colors.amber,
+    backgroundColor: k === 'high' ? '#fee2e2' : k === 'low' ? '#d1fae5' : '#fef3c7',
+  }),
+  priorityChipText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  priorityChipTextActive: { color: colors.text },
+  xpRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  xpChip: {
+    flex: 1, alignItems: 'center', paddingVertical: 8,
+    borderRadius: radius.md, borderWidth: 1.5,
+    borderColor: colors.outline, backgroundColor: colors.muted,
+  },
+  xpChipActive: { borderColor: colors.primary, backgroundColor: colors.primaryMuted },
+  xpChipText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  xpChipTextActive: { color: colors.primary },
+  xpInputRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: colors.outline, borderRadius: radius.md,
+    backgroundColor: colors.muted, paddingHorizontal: 14, paddingVertical: 12,
+    marginBottom: 16,
+  },
+  xpInput: { flex: 1, fontSize: 20, fontWeight: '800', color: colors.text },
+  xpInputLabel: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
   modeRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   modeChip: {
     flexDirection: 'row',
@@ -529,20 +602,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   dateBtnText: { fontSize: 15, fontWeight: '600', color: colors.text },
-  starsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: -2,
-    marginBottom: 12,
-  },
-  starBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   reward: {
     flexDirection: 'row',
     alignItems: 'center',

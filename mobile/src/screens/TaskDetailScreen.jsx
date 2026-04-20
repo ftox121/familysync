@@ -299,6 +299,8 @@ export default function TaskDetailScreen({ navigation, route }) {
             showSuccess('Задача удалена')
             refresh()
             navigation.navigate('MainTabs', { screen: 'Tasks' })
+          } catch (error) {
+            showError(error?.message || 'Не удалось удалить задачу')
           } finally {
             setLoading(false)
           }

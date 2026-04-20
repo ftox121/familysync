@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Sparkles, Trophy, X } from 'lucide-react-native'
+import { Coins, Plus, Sparkles, Trophy, X } from 'lucide-react-native'
 import {
   ActivityIndicator,
   Alert,
@@ -44,17 +44,6 @@ const STATIC_REWARDS = [
     rarity_label: 'Rare',
   },
   {
-    id: 'skip-cleaning',
-    icon: '🪄',
-    title: 'Карта отмены уборки',
-    description: 'Можно один раз пропустить дежурную уборку без штрафа.',
-    points_cost: 95,
-    type: 'artifact',
-    rarity: 'epic',
-    rarity_label: 'Epic',
-    duration_hours: 24,
-  },
-  {
     id: 'game-time',
     icon: '🎮',
     title: 'Дополнительное время на игры',
@@ -96,7 +85,6 @@ const RARITY_OPTIONS = [
 const TYPE_OPTIONS = [
   { value: 'item', label: 'Предмет' },
   { value: 'privilege', label: 'Привилегия' },
-  { value: 'artifact', label: 'Артефакт' },
 ]
 
 const EMOJI_PRESETS = ['🎁','🍕','🍦','🎮','🎬','🛁','🎨','🚴','⚽','🎤','🏖','🍩','🪀','🐾','🌟','🏆','💎','🎠','🧸','🌈']
@@ -237,9 +225,11 @@ export default function RewardsScreen() {
                 </Text>
               </View>
               <View style={styles.rightCol}>
-                <View style={styles.pointsCard}>
-                  <Text style={styles.pointsValue}>{currentPoints}</Text>
-                </View>
+                {!isParent && (
+                  <View style={styles.pointsCard}>
+                    <Text style={styles.pointsValue}>{currentPoints} XP</Text>
+                  </View>
+                )}
                 {isParent && (
                   <Pressable style={styles.addBtn} onPress={openCreate}>
                     <Plus size={18} color="#fff" />
@@ -346,14 +336,19 @@ export default function RewardsScreen() {
               />
 
               <Text style={styles.fieldLabel}>Стоимость в XP *</Text>
-              <TextInput
-                style={styles.input}
-                value={newCost}
-                onChangeText={v => setNewCost(v.replace(/[^0-9]/g, ''))}
-                keyboardType="number-pad"
-                placeholder="50"
-                placeholderTextColor={colors.textMuted}
-              />
+              <View style={styles.costRow}>
+                <View style={styles.costIconWrap}>
+                  <Coins size={18} color={colors.primary} />
+                </View>
+                <TextInput
+                  style={styles.costInput}
+                  value={newCost}
+                  onChangeText={v => setNewCost(v.replace(/[^0-9]/g, ''))}
+                  keyboardType="number-pad"
+                  placeholder="50"
+                  placeholderTextColor={colors.textMuted}
+                />
+              </View>
 
               <Text style={styles.fieldLabel}>Тип</Text>
               <View style={styles.chipRow}>
@@ -489,6 +484,30 @@ const styles = StyleSheet.create({
     fontSize: 15, color: colors.text, backgroundColor: colors.muted, marginBottom: 16,
   },
   textarea: { minHeight: 72, textAlignVertical: 'top' },
+  costRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.outline,
+    borderRadius: radius.md,
+    backgroundColor: colors.muted,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  costIconWrap: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: colors.primaryMuted,
+    borderRightWidth: 1.5,
+    borderRightColor: colors.outline,
+  },
+  costInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: colors.text,
+  },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   optChip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.full,

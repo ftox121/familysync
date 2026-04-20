@@ -4,11 +4,11 @@
 
 /** Границы уровней по накопленному XP (нижняя граница включительно) */
 export const LEVEL_TIERS = [
-  { minXp: 0, id: 'star', title: 'Звёздочка' },
-  { minXp: 50, id: 'sun', title: 'Солнышко' },
-  { minXp: 150, id: 'patron', title: 'Меценат' },
-  { minXp: 300, id: 'hero', title: 'Супергерой' },
-  { minXp: 500, id: 'legend', title: 'Легенда' },
+  { minXp: 0,    id: 'newbie',  title: 'Новичок',        icon: '🌱' },
+  { minXp: 100,  id: 'helper',  title: 'Ответственный',  icon: '⚡' },
+  { minXp: 300,  id: 'master',  title: 'Мастер порядка', icon: '🔥' },
+  { minXp: 600,  id: 'guru',    title: 'Гуру порядка',   icon: '💎' },
+  { minXp: 1000, id: 'legend',  title: 'Легенда семьи',  icon: '👑' },
 ]
 
 /**
@@ -26,7 +26,9 @@ export function computeTaskRewardXp(task, context = {}) {
 
   let bonus = 0
   if (task.due_date && task.completed_at) {
-    const dueEnd = new Date(task.due_date + 'T23:59:59')
+    const dueEnd = task.due_date.includes('T')
+      ? new Date(task.due_date)
+      : new Date(task.due_date + 'T23:59:59')
     if (new Date(task.completed_at) <= dueEnd) bonus += 5
   }
 
@@ -148,7 +150,9 @@ export function nextOnTimeStreak(previousOnTime, wasOnTime) {
 
 export function wasTaskCompletedOnTime(task) {
   if (!task.due_date || !task.completed_at) return true
-  const dueEnd = new Date(task.due_date + 'T23:59:59')
+  const dueEnd = task.due_date.includes('T')
+    ? new Date(task.due_date)
+    : new Date(task.due_date + 'T23:59:59')
   return new Date(task.completed_at) <= dueEnd
 }
 

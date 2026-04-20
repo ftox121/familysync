@@ -27,7 +27,7 @@ export default function FamilyChatScreen() {
   const insets = useSafeAreaInsets()
   const { handleScroll, show, hide } = useTabBar()
   const [message, setMessage] = useState('')
-  const [keyboardHeight, setKeyboardHeight] = useState(0)
+  const [kbHeight, setKbHeight] = useState(0)
   const listRef = useRef(null)
   const queryClient = useQueryClient()
 
@@ -47,33 +47,21 @@ export default function FamilyChatScreen() {
   })
 
   useEffect(() => {
+    show()
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
-        setKeyboardHeight(e.endCoordinates.height)
-        hide()
-      }
+      e => { hide(); setKbHeight(e.endCoordinates.height) }
     )
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardHeight(0)
-        show()
-      }
+      () => { show(); setKbHeight(0) }
     )
-    return () => {
-      showSub.remove()
-      hideSub.remove()
-    }
+    return () => { showSub.remove(); hideSub.remove() }
   }, [hide, show])
 
   useEffect(() => {
     if (messages.length) listRef.current?.scrollToEnd({ animated: true })
   }, [messages.length])
-
-  useEffect(() => {
-    show()
-  }, [show])
 
   const getName = email => members.find(m => m.user_email === email)?.display_name || email
 
@@ -92,12 +80,10 @@ export default function FamilyChatScreen() {
       </ScreenBackground>
     )
 
-  const bottomPadding = Math.max(insets.bottom, 14) + (keyboardHeight > 0 ? 0 : 60)
-
   return (
     <ScreenBackground>
-      <View style={styles.flex}>
-        <View style={[styles.container, { paddingTop: insets.top + 10 }]}> 
+      <View style={[styles.flex, kbHeight > 0 && { paddingBottom: kbHeight }]}>
+        <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
           <View style={styles.header}>
             <Text style={typography.caption}>Семейное общение</Text>
             <View style={styles.headerRow}>
@@ -131,7 +117,7 @@ export default function FamilyChatScreen() {
             ListEmptyComponent={<Text style={styles.empty}>Начните семейный диалог 👋</Text>}
           />
 
-          <View style={[styles.inputRow, { paddingBottom: bottomPadding }]}> 
+          <View style={[styles.inputRow, { paddingBottom: kbHeight > 0 ? Math.max(insets.bottom, 12) : Math.max(insets.bottom, 14) + 100 }]}>
             <TextInput
               style={styles.input}
               value={message}
