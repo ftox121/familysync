@@ -1,6 +1,7 @@
 import express from 'express'
 import { query } from '../db/index.js'
 import { authMiddleware } from '../middleware/auth.js'
+import { broadcast } from '../ws.js'
 
 const router = express.Router()
 
@@ -28,6 +29,11 @@ router.post('/:taskId/messages', authMiddleware, async (req, res) => {
        VALUES ($1, $2, $3) RETURNING *`,
       [req.params.taskId, req.user.email, message]
     )
+
+    // Find family_id via the task so we can broadcast to the right room
+    const taskRow = await query('SELECT family_id FROM tasks WHERE id = $1', [req.params.taskId])
+    const familyId = taskRow.rows[0]?.family_id
+    if (familyId) broadcast(familyId, { type: 'task_chat', taskId: Number(req.params.taskId) })
 
     res.json(result.rows[0])
   } catch (error) {

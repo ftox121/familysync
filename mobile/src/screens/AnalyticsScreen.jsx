@@ -138,7 +138,7 @@ export default function AnalyticsScreen({ navigation }) {
                 </Text>
               </View>
               <View style={styles.ptsPill}>
-                <Text style={styles.rankPts}>{r.points} XP</Text>
+                <Text style={styles.rankPts}>{r.points} ★</Text>
               </View>
             </View>
           ))}

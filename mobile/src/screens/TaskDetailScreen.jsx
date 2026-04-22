@@ -128,7 +128,7 @@ export default function TaskDetailScreen({ navigation, route }) {
       </ScreenBackground>
     )
 
-  /** Начисление XP и достижений при финальном завершении (родитель или ребёнок после подтверждения). */
+  /** Начисление звезд и достижений при финальном завершении (родитель или ребёнок после подтверждения). */
   const applyCompletionRewards = async (assigneeMember, completedAtIso) => {
     if (!assigneeMember || !task.assigned_to) return
 
@@ -138,6 +138,7 @@ export default function TaskDetailScreen({ navigation, route }) {
     const taskWithDone = { ...task, status: 'completed', completed_at: completedAtIso }
     const xpDetail = GamificationService.computeTaskRewardXp(taskWithDone, {
       streakCount: streakBefore,
+      memberXp: assigneeMember.points ?? 0,
     })
     const newStreak = GamificationService.nextStreakCount(
       streakBefore,
@@ -154,13 +155,13 @@ export default function TaskDetailScreen({ navigation, route }) {
     })
 
     const nextTasksDone = (assigneeMember.tasks_completed ?? 0) + 1
+    const newPoints = (assigneeMember.points ?? 0) + xpDetail.total
     const prevAch = parseAchievements(assigneeMember.achievements_json)
     const unlocked = GamificationService.evaluateNewAchievements(
-      { ...assigneeMember, tasks_completed: nextTasksDone },
+      { ...assigneeMember, tasks_completed: nextTasksDone, points: newPoints },
       { streakCount: newStreak, onTimeStreak: newOnTime }
     )
     const mergedAch = [...prevAch, ...unlocked.map(a => a.id)]
-    const newPoints = (assigneeMember.points ?? 0) + xpDetail.total
 
     // Обновляем на сервере только поля, которые точно есть в БД
     const memberPayload = {
@@ -187,7 +188,7 @@ export default function TaskDetailScreen({ navigation, route }) {
       family_id: currentMembership.family_id,
       user_email: task.assigned_to,
       title: 'Задача выполнена!',
-      message: `+${xpDetail.total} XP за «${task.title}» (${GamificationService.getTierForXp(newPoints).tier.title})`,
+      message: `+${xpDetail.total} ★ за «${task.title}» (${GamificationService.getTierForXp(newPoints).tier.title})`,
       type: 'achievement',
     })
   }
@@ -390,14 +391,18 @@ export default function TaskDetailScreen({ navigation, route }) {
           <View style={styles.badgeOutline}>
             <Text style={styles.badgeOutlineText}>{PRIORITY_LABELS[task.priority]}</Text>
           </View>
-          {task.due_date && (
-            <View style={[styles.badgeOutline, styles.badgeRow]}>
-              <Clock size={12} color={colors.textMuted} />
-              <Text style={styles.badgeOutlineText}>
-                {format(parseDate(task.due_date), 'd MMM yyyy', { locale: ru })}
-              </Text>
-            </View>
-          )}
+          {task.due_date && (() => {
+            const d = new Date(task.due_date)
+            const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
+            return (
+              <View style={[styles.badgeOutline, styles.badgeRow]}>
+                <Clock size={12} color={colors.textMuted} />
+                <Text style={styles.badgeOutlineText}>
+                  {format(d, hasTime ? 'd MMM yyyy, HH:mm' : 'd MMM yyyy', { locale: ru })}
+                </Text>
+              </View>
+            )
+          })()}
           <View style={styles.badgeViolet}>
             <Star size={12} color={colors.primary} />
             <Text style={styles.badgeVioletText}>{task.points_reward || 10} баллов</Text>
@@ -603,13 +608,13 @@ export default function TaskDetailScreen({ navigation, route }) {
               </Pressable>
               {editShowDate && (
                 <DateTimePicker
-                  value={editDueDate ? new Date(editDueDate + 'T12:00:00') : new Date()}
-                  mode="date"
+                  value={editDueDate ? new Date(editDueDate) : new Date()}
+                  mode="datetime"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   onChange={(event, date) => {
                     if (Platform.OS === 'android') setEditShowDate(false)
                     if (event?.type === 'dismissed') return
-                    if (date) setEditDueDate(format(date, 'yyyy-MM-dd'))
+                    if (date) setEditDueDate(date.toISOString())
                   }}
                 />
               )}

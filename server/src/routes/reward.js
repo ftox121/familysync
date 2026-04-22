@@ -1,6 +1,7 @@
 import express from 'express'
 import { query } from '../db/index.js'
 import { authMiddleware } from '../middleware/auth.js'
+import { broadcast } from '../ws.js'
 
 const router = express.Router()
 
@@ -148,20 +149,32 @@ router.get('/claims', authMiddleware, async (req, res) => {
 })
 
 // Redeem reward immediately (game-like flow)
+// Parents can redeem on behalf of a child by passing { member_email } in the body
 router.post('/:id/redeem', authMiddleware, async (req, res) => {
   try {
     const rewardResult = await query('SELECT * FROM rewards WHERE id = $1 LIMIT 1', [req.params.id])
     const reward = rewardResult.rows[0]
     if (!reward) return res.status(404).json({ error: 'Reward not found' })
 
-    const membership = await getMembershipByFamily(reward.family_id, req.user.email)
-    if (!membership || membership.role !== 'child')
-      return res.status(403).json({ error: 'Only child accounts can redeem rewards' })
+    const callerMembership = await getMembershipByFamily(reward.family_id, req.user.email)
+    if (!callerMembership) return res.status(403).json({ error: 'Not a family member' })
 
-    if ((membership.points || 0) < reward.points_cost)
+    let targetMembership = callerMembership
+
+    if (callerMembership.role !== 'child') {
+      if (!['parent', 'grandparent'].includes(callerMembership.role))
+        return res.status(403).json({ error: 'Only parents and children can redeem rewards' })
+      const { member_email } = req.body
+      if (!member_email) return res.status(400).json({ error: 'Укажите member_email для покупки от имени ребёнка' })
+      targetMembership = await getMembershipByFamily(reward.family_id, member_email)
+      if (!targetMembership || targetMembership.role !== 'child')
+        return res.status(400).json({ error: 'Целевой участник должен быть ребёнком' })
+    }
+
+    if ((targetMembership.points || 0) < reward.points_cost)
       return res.status(400).json({ error: 'Not enough points' })
 
-    await query('UPDATE family_members SET points = points - $1 WHERE id = $2', [reward.points_cost, membership.id])
+    await query('UPDATE family_members SET points = points - $1 WHERE id = $2', [reward.points_cost, targetMembership.id])
 
     const nowExpr = "CURRENT_TIMESTAMP"
     const activeUntilExpr = reward.type === 'artifact' && reward.duration_hours
@@ -174,10 +187,12 @@ router.post('/:id/redeem', authMiddleware, async (req, res) => {
        VALUES ($1, $2, $3, ${nowExpr}, ${reward.type === 'artifact' ? nowExpr : 'NULL'}, ${activeUntilExpr}, NULL)
        RETURNING *`,
       reward.type === 'artifact'
-        ? [reward.id, req.user.email, status, reward.duration_hours]
-        : [reward.id, req.user.email, status]
+        ? [reward.id, targetMembership.user_email, status, reward.duration_hours]
+        : [reward.id, targetMembership.user_email, status]
     )
 
+    broadcast(reward.family_id, { type: 'members_updated' })
+    broadcast(reward.family_id, { type: 'reward_claims_updated' })
     res.json(result.rows[0])
   } catch (error) {
     console.error(error)
@@ -196,7 +211,10 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     if (!membership || !['parent', 'grandparent'].includes(membership.role))
       return res.status(403).json({ error: 'Only parents can delete rewards' })
 
+    await query('DELETE FROM reward_claims WHERE reward_id = $1', [req.params.id])
     await query('DELETE FROM rewards WHERE id = $1', [req.params.id])
+    broadcast(reward.family_id, { type: 'reward_claims_updated' })
+    broadcast(reward.family_id, { type: 'members_updated' })
     res.json({ success: true })
   } catch (error) {
     console.error(error)

@@ -1,8 +1,10 @@
 import express from 'express'
 import { query } from '../db/index.js'
 import { authMiddleware } from '../middleware/auth.js'
+import { broadcast } from '../ws.js'
 
 const router = express.Router()
+let penaltyColumnsEnsured = false
 
 function toBooleanOrDefault(value, defaultValue = false) {
   return typeof value === 'boolean' ? value : defaultValue
@@ -29,6 +31,101 @@ async function getMembership(familyId, email) {
     [familyId, email]
   )
   return result.rows[0] || null
+}
+
+async function ensurePenaltyColumns() {
+  if (penaltyColumnsEnsured) return
+
+  await query(`
+    ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS overdue_penalty_applied BOOLEAN DEFAULT FALSE;
+
+    ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS overdue_penalty_points INTEGER DEFAULT 0;
+
+    ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS overdue_penalty_applied_at TIMESTAMP;
+  `)
+
+  penaltyColumnsEnsured = true
+}
+
+function getDefaultTaskReward(task) {
+  if (task.points_reward && task.points_reward > 0) return task.points_reward
+  if (task.priority === 'high') return 20
+  if (task.priority === 'low') return 5
+  return 10
+}
+
+function getOverduePenaltyPoints(task) {
+  const base = getDefaultTaskReward(task)
+  return Math.max(5, Math.min(25, Math.round(base * 0.35)))
+}
+
+async function applyOverduePenalties(familyId) {
+  if (!familyId) return 0
+  await ensurePenaltyColumns()
+
+  const overdueResult = await query(
+    `SELECT *
+     FROM tasks
+     WHERE family_id = $1
+       AND assigned_to IS NOT NULL
+       AND status IN ('pending', 'in_progress', 'pending_confirmation')
+       AND due_date IS NOT NULL
+       AND COALESCE(overdue_penalty_applied, FALSE) = FALSE
+       AND due_date::date < CURRENT_DATE`,
+    [familyId]
+  )
+
+  let applied = 0
+
+  for (const task of overdueResult.rows) {
+    const membership = await getMembership(task.family_id, task.assigned_to)
+    if (!membership) continue
+
+    const penaltyPoints = getOverduePenaltyPoints(task)
+
+    await query(
+      `UPDATE family_members
+       SET points = GREATEST(points - $1, 0),
+           level = FLOOR(GREATEST(points - $1, 0) / 100) + 1
+       WHERE id = $2`,
+      [penaltyPoints, membership.id]
+    )
+
+    await query(
+      `UPDATE tasks
+       SET overdue_penalty_applied = TRUE,
+           overdue_penalty_points = $1,
+           overdue_penalty_applied_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [penaltyPoints, task.id]
+    )
+
+    await query(
+      `INSERT INTO notifications (family_id, user_email, title, message, type)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        task.family_id,
+        task.assigned_to,
+        'Просрочка задачи',
+        `С задания «${task.title}» списано ${penaltyPoints} ★ за пропущенный дедлайн.`,
+        'task_overdue_penalty',
+      ]
+    )
+
+    applied++
+  }
+
+  if (applied > 0) {
+    broadcast(familyId, { type: 'members_updated' })
+    broadcast(familyId, { type: 'tasks_updated' })
+    broadcast(familyId, { type: 'notifications_updated' })
+  }
+
+  return applied
 }
 
 async function getTaskWithParticipants(taskId) {
@@ -77,7 +174,7 @@ async function awardQuestParticipants(task) {
         task.family_id,
         participant.user_email,
         'Квест завершен!',
-        `Вы получили ${rewardAmount} XP за квест «${task.title}»`,
+        `Вы получили ${rewardAmount} ★ за квест «${task.title}»`,
         'achievement',
       ]
     )
@@ -88,6 +185,7 @@ async function awardQuestParticipants(task) {
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const { family_id } = req.query
+    await applyOverduePenalties(family_id)
 
     const result = await query(
       `SELECT t.*,
@@ -119,6 +217,11 @@ router.get('/', authMiddleware, async (req, res) => {
 // Get single task
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
+    await ensurePenaltyColumns()
+    const familyLookup = await query('SELECT family_id FROM tasks WHERE id = $1 LIMIT 1', [req.params.id])
+    const familyId = familyLookup.rows[0]?.family_id
+    if (familyId) await applyOverduePenalties(familyId)
+
     const task = await getTaskWithParticipants(req.params.id)
 
     if (!task) {
@@ -172,8 +275,8 @@ router.post('/', authMiddleware, async (req, res) => {
     } else if (assigned_to) {
       const assignee = await getMembership(family_id, assigned_to)
       if (!assignee) return res.status(400).json({ error: 'Assignee is not in this family' })
-      if (assignee.role !== 'child')
-        return res.status(400).json({ error: 'Tasks can be assigned only to child profiles' })
+      if (assignee.role !== 'child' && assigned_to !== req.user.email)
+        return res.status(400).json({ error: 'Tasks can be assigned only to child profiles or yourself' })
     }
 
     const result = await query(
@@ -212,6 +315,7 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 
     const withParticipants = await getTaskWithParticipants(task.id)
+    broadcast(family_id, { type: 'tasks_updated' })
     res.json(withParticipants)
   } catch (error) {
     console.error(error)
@@ -246,6 +350,8 @@ router.post('/:id/participants/complete', authMiddleware, async (req, res) => {
     }
 
     const updatedTask = await getTaskWithParticipants(task.id)
+    broadcast(task.family_id, { type: 'tasks_updated' })
+    broadcast(task.family_id, { type: 'members_updated' })
     res.json(updatedTask)
   } catch (error) {
     console.error(error)
@@ -274,7 +380,15 @@ router.put('/:id', authMiddleware, async (req, res) => {
       values
     )
 
-    res.json(result.rows[0])
+    const updatedTask = result.rows[0]
+    if (updatedTask?.family_id) {
+      broadcast(updatedTask.family_id, { type: 'tasks_updated' })
+      // Completing a task changes member points
+      if (updatedTask.status === 'completed') {
+        broadcast(updatedTask.family_id, { type: 'members_updated' })
+      }
+    }
+    res.json(updatedTask)
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Failed to update task' })
@@ -284,7 +398,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
 // Delete task
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
+    const existing = await query('SELECT family_id FROM tasks WHERE id = $1', [req.params.id])
     await query('DELETE FROM tasks WHERE id = $1', [req.params.id])
+    const familyId = existing.rows[0]?.family_id
+    if (familyId) broadcast(familyId, { type: 'tasks_updated' })
     res.json({ success: true })
   } catch (error) {
     console.error(error)

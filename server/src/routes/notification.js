@@ -1,6 +1,7 @@
 import express from 'express'
 import { query } from '../db/index.js'
 import { authMiddleware } from '../middleware/auth.js'
+import { broadcast } from '../ws.js'
 
 const router = express.Router()
 
@@ -29,6 +30,7 @@ router.post('/', authMiddleware, async (req, res) => {
       [family_id, user_email, title, message, type]
     )
 
+    if (family_id) broadcast(family_id, { type: 'notifications_updated' })
     res.json(result.rows[0])
   } catch (error) {
     console.error(error)

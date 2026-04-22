@@ -2,6 +2,7 @@ import express from 'express'
 import bcrypt from 'bcryptjs'
 import { query } from '../db/index.js'
 import { authMiddleware } from '../middleware/auth.js'
+import { broadcast } from '../ws.js'
 
 const router = express.Router()
 
@@ -194,6 +195,7 @@ router.post('/:familyId/messages', authMiddleware, async (req, res) => {
        VALUES ($1, $2, $3) RETURNING *`,
       [familyId, req.user.email, String(message).trim()]
     )
+    broadcast(familyId, { type: 'family_chat' })
     res.json(result.rows[0])
   } catch (error) {
     console.error(error)
@@ -248,7 +250,9 @@ router.put('/members/:memberId', authMiddleware, async (req, res) => {
       values
     )
 
-    res.json(result.rows[0])
+    const updated = result.rows[0]
+    if (updated?.family_id) broadcast(updated.family_id, { type: 'members_updated' })
+    res.json(updated)
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Failed to update member' })

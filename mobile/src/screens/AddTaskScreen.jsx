@@ -156,6 +156,8 @@ export default function AddTaskScreen({ navigation }) {
       setMinParticipants('2')
       setRewardMultiplier('1.5')
       navigation.navigate('MainTabs', { screen: 'Tasks' })
+    } catch (error) {
+      showError(error?.message || 'Не удалось создать задачу')
     } finally {
       setLoading(false)
     }
@@ -273,9 +275,9 @@ export default function AddTaskScreen({ navigation }) {
             <Text style={styles.label}>Назначить</Text>
             {childMembers.length === 0 ? (
               <View style={styles.noChildrenBox}>
-                <Text style={styles.noChildrenText}>Сначала добавьте профиль ребенка, чтобы назначать задачи.</Text>
+                <Text style={styles.noChildrenText}>Нет профилей детей. Можно назначить задачу себе или добавить ребёнка.</Text>
                 <Pressable style={styles.noChildrenBtn} onPress={() => setShowChildModal(true)}>
-                  <Text style={styles.noChildrenBtnText}>Добавить ребенка</Text>
+                  <Text style={styles.noChildrenBtnText}>Добавить ребёнка</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -406,7 +408,7 @@ export default function AddTaskScreen({ navigation }) {
               </>
             ) : null}
 
-            <Text style={styles.label}>Награда за выполнение (XP)</Text>
+            <Text style={styles.label}>Награда за выполнение (★)</Text>
             <View style={styles.xpRow}>
               {[10, 20, 30, 50, 100].map(v => (
                 <Pressable
@@ -432,7 +434,7 @@ export default function AddTaskScreen({ navigation }) {
                 maxLength={3}
                 selectTextOnFocus
               />
-              <Text style={styles.xpInputLabel}>XP</Text>
+              <Text style={styles.xpInputLabel}>★</Text>
             </View>
 
             <Pressable onPress={handleSubmit} disabled={loading} style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}>

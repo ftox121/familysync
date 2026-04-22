@@ -101,8 +101,16 @@ export default function TaskCard({ task, members, onPress }) {
                 {isOverdue
                   ? 'Просрочено'
                   : isDueToday
-                    ? 'Сегодня'
-                    : format(new Date(task.due_date), 'd MMMM', { locale: ru })}
+                    ? (() => {
+                        const d = new Date(task.due_date)
+                        const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
+                        return hasTime ? `Сегодня в ${format(d, 'HH:mm')}` : 'Сегодня'
+                      })()
+                    : (() => {
+                        const d = new Date(task.due_date)
+                        const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
+                        return format(d, hasTime ? 'd MMMM, HH:mm' : 'd MMMM', { locale: ru })
+                      })()}
               </Text>
             </View>
           ) : (

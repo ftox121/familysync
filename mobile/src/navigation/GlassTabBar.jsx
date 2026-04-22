@@ -11,6 +11,7 @@ import {
 } from 'lucide-react-native'
 import { colors, gradients, radius, shadows, typography } from '../theme'
 import { useTabBar } from '../context/TabBarContext'
+import { useFamilyContext } from '../context/FamilyContext'
 
 const ICONS = {
   Tasks: ListTodo,
@@ -58,6 +59,7 @@ export default function GlassTabBar({ state, descriptors, navigation }) {
 }
 
 function TabRow({ state, navigation }) {
+  const { unreadChatCount, markChatRead } = useFamilyContext()
   return (
     <View style={styles.row}>
       {ORDER.map(name => {
@@ -96,6 +98,7 @@ function TabRow({ state, navigation }) {
             key={name}
             accessibilityRole="button"
             onPress={() => {
+              if (name === 'Chat') markChatRead()
               const event = navigation.emit({
                 type: 'tabPress',
                 target: route.key,
@@ -105,8 +108,13 @@ function TabRow({ state, navigation }) {
             }}
             style={({ pressed }) => [styles.tabItem, pressed && { opacity: 0.85 }]}
           >
-            <View>
+            <View style={{ position: 'relative' }}>
               <Icon size={22} color={color} strokeWidth={isFocused ? 2.4 : 2} />
+              {name === 'Chat' && unreadChatCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadChatCount > 99 ? '99+' : String(unreadChatCount)}</Text>
+                </View>
+              )}
             </View>
             <Text
               style={[
@@ -196,6 +204,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   iconBadgeWrap: { position: 'relative' },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.priorityHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#fff',
+    lineHeight: 12,
+  },
   notifDot: {
     position: 'absolute',
     top: -2,

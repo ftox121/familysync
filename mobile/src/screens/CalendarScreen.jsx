@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react-native'
+import { ChevronLeft, ChevronRight, Clock } from 'lucide-react-native'
 import {
   ActivityIndicator,
   Dimensions,
@@ -36,13 +36,15 @@ export default function CalendarScreen({ navigation }) {
   const taskDates = useMemo(() => {
     const set = new Set()
     tasks.forEach(t => {
-      if (t.due_date) set.add(t.due_date)
+      if (t.due_date) set.add(format(new Date(t.due_date), 'yyyy-MM-dd'))
     })
     return set
   }, [tasks])
 
   const dayTasks = useMemo(
-    () => tasks.filter(t => t.due_date && isSameDay(new Date(t.due_date), selectedDate)),
+    () => tasks
+      .filter(t => t.due_date && isSameDay(new Date(t.due_date), selectedDate))
+      .sort((a, b) => new Date(a.due_date) - new Date(b.due_date)),
     [tasks, selectedDate]
   )
 
@@ -157,13 +159,25 @@ export default function CalendarScreen({ navigation }) {
             {dayTasks.length === 0 ? <Text style={styles.noTasks}>Нет задач на этот день</Text> : null}
           </>
         }
-        renderItem={({ item }) => (
-          <TaskCard
-            task={item}
-            members={members}
-            onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-          />
-        )}
+        renderItem={({ item }) => {
+          const dueDate = new Date(item.due_date)
+          const hasTime = dueDate.getHours() !== 0 || dueDate.getMinutes() !== 0
+          return (
+            <View>
+              {hasTime && (
+                <View style={styles.timeLabel}>
+                  <Clock size={12} color={colors.primary} />
+                  <Text style={styles.timeLabelText}>Дедлайн в {format(dueDate, 'HH:mm')}</Text>
+                </View>
+              )}
+              <TaskCard
+                task={item}
+                members={members}
+                onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+              />
+            </View>
+          )
+        }}
       />
     </ScreenBackground>
   )
@@ -254,5 +268,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     paddingVertical: 24,
     fontWeight: '500',
+  },
+  timeLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  timeLabelText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+    letterSpacing: 0.2,
   },
 })

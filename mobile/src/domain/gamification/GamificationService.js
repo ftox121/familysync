@@ -1,15 +1,24 @@
 /**
- * Геймификация: XP (баллы), уровни с русскими названиями, достижения, серии выполнений.
+ * Геймификация: звезды (баллы), уровни с русскими названиями, достижения, серии выполнений.
  */
 
-/** Границы уровней по накопленному XP (нижняя граница включительно) */
+/** Границы уровней по накопленным звездам (нижняя граница включительно) */
 export const LEVEL_TIERS = [
-  { minXp: 0,    id: 'newbie',  title: 'Новичок',        icon: '🌱' },
-  { minXp: 100,  id: 'helper',  title: 'Ответственный',  icon: '⚡' },
-  { minXp: 300,  id: 'master',  title: 'Мастер порядка', icon: '🔥' },
-  { minXp: 600,  id: 'guru',    title: 'Гуру порядка',   icon: '💎' },
-  { minXp: 1000, id: 'legend',  title: 'Легенда семьи',  icon: '👑' },
+  { minXp: 0,    id: 'novice',      title: 'Новичок',            icon: '🌱' },
+  { minXp: 250,  id: 'responsible', title: 'Ответственный',      icon: '⭐' },
+  { minXp: 800,  id: 'pencil',      title: 'Семейный карандаш',  icon: '✏️' },
+  { minXp: 2000, id: 'pillar',      title: 'Опора семьи',        icon: '🛡️' },
+  { minXp: 4500, id: 'legend',      title: 'Легенда семьи',      icon: '👑' },
 ]
+
+/** Множитель XP за задачу в зависимости от текущих очков участника */
+export function getRankXpMultiplier(xp) {
+  if (xp >= 4500) return 1.5
+  if (xp >= 2000) return 1.35
+  if (xp >= 800)  return 1.2
+  if (xp >= 250)  return 1.1
+  return 1.0
+}
 
 /**
  * Баллы за задачу:
@@ -32,13 +41,15 @@ export function computeTaskRewardXp(task, context = {}) {
     if (new Date(task.completed_at) <= dueEnd) bonus += 5
   }
 
-  const raw = base * streakMultiplier + bonus
+  const rankMultiplier = getRankXpMultiplier(context.memberXp ?? 0)
+  const raw = (base * streakMultiplier + bonus) * rankMultiplier
   const total = Math.round(raw)
   return {
     total,
     base,
     streakMultiplier,
     onTimeBonus: bonus,
+    rankMultiplier,
   }
 }
 
@@ -74,6 +85,33 @@ export const ACHIEVEMENTS = {
     progressKey: 'totalCompleted',
     predicate: ({ totalCompleted }) => totalCompleted >= 1,
   },
+  five_tasks: {
+    id: 'five_tasks',
+    icon: '🧺',
+    title: 'На старте',
+    description: 'Выполнено 5 задач',
+    goal: 5,
+    progressKey: 'totalCompleted',
+    predicate: ({ totalCompleted }) => totalCompleted >= 5,
+  },
+  ten_tasks: {
+    id: 'ten_tasks',
+    icon: '🚀',
+    title: 'Разогнался',
+    description: 'Выполнено 10 задач',
+    goal: 10,
+    progressKey: 'totalCompleted',
+    predicate: ({ totalCompleted }) => totalCompleted >= 10,
+  },
+  twenty_five_tasks: {
+    id: 'twenty_five_tasks',
+    icon: '🛠',
+    title: 'Надежная опора',
+    description: 'Выполнено 25 задач',
+    goal: 25,
+    progressKey: 'totalCompleted',
+    predicate: ({ totalCompleted }) => totalCompleted >= 25,
+  },
   ten_streak: {
     id: 'ten_streak',
     icon: '🔥',
@@ -82,6 +120,24 @@ export const ACHIEVEMENTS = {
     goal: 10,
     progressKey: 'streakCount',
     predicate: ({ streakCount }) => streakCount >= 10,
+  },
+  streak_3: {
+    id: 'streak_3',
+    icon: '✨',
+    title: 'Поймал темп',
+    description: '3 задачи подряд без разрыва серии',
+    goal: 3,
+    progressKey: 'streakCount',
+    predicate: ({ streakCount }) => streakCount >= 3,
+  },
+  streak_5: {
+    id: 'streak_5',
+    icon: '⚡',
+    title: 'В ритме',
+    description: '5 задач подряд без разрыва серии',
+    goal: 5,
+    progressKey: 'streakCount',
+    predicate: ({ streakCount }) => streakCount >= 5,
   },
   fifty_tasks: {
     id: 'fifty_tasks',
@@ -101,6 +157,51 @@ export const ACHIEVEMENTS = {
     progressKey: 'onTimeStreak',
     predicate: ({ onTimeStreak }) => onTimeStreak >= 15,
   },
+  punctual_3: {
+    id: 'punctual_3',
+    icon: '📅',
+    title: 'Точно в срок',
+    description: '3 задачи подряд выполнены вовремя',
+    goal: 3,
+    progressKey: 'onTimeStreak',
+    predicate: ({ onTimeStreak }) => onTimeStreak >= 3,
+  },
+  punctual_7: {
+    id: 'punctual_7',
+    icon: '⌛',
+    title: 'Хозяин времени',
+    description: '7 задач подряд выполнены вовремя',
+    goal: 7,
+    progressKey: 'onTimeStreak',
+    predicate: ({ onTimeStreak }) => onTimeStreak >= 7,
+  },
+  points_100: {
+    id: 'points_100',
+    icon: '⭐',
+    title: 'Первые звезды',
+    description: 'Накоплено 100 звезд',
+    goal: 100,
+    progressKey: 'currentPoints',
+    predicate: ({ currentPoints }) => currentPoints >= 100,
+  },
+  points_300: {
+    id: 'points_300',
+    icon: '🌟',
+    title: 'Звездный запас',
+    description: 'Накоплено 300 звезд',
+    goal: 300,
+    progressKey: 'currentPoints',
+    predicate: ({ currentPoints }) => currentPoints >= 300,
+  },
+  points_700: {
+    id: 'points_700',
+    icon: '💫',
+    title: 'Сияющий герой',
+    description: 'Накоплено 700 звезд',
+    goal: 700,
+    progressKey: 'currentPoints',
+    predicate: ({ currentPoints }) => currentPoints >= 700,
+  },
 }
 
 /**
@@ -111,7 +212,7 @@ export const ACHIEVEMENTS = {
 export function evaluateNewAchievements(member, state) {
   const prev = safeParseArray(member.achievements_json)
   const totalCompleted = member.tasks_completed ?? 0
-  const ctx = { totalCompleted, ...state }
+  const ctx = { totalCompleted, currentPoints: member.points ?? 0, ...state }
   const unlocked = []
   for (const def of Object.values(ACHIEVEMENTS)) {
     if (prev.includes(def.id)) continue
@@ -175,13 +276,14 @@ export function buildGamificationProfileView(member, tasksForMember = []) {
     completedCount: completed.length,
     exampleLine:
       tier.nextTier != null
-        ? `До уровня «${tier.nextTier.title}» осталось ${tier.xpToNext} XP`
+        ? `До уровня «${tier.nextTier.title}» осталось ${tier.xpToNext} ★`
         : 'Достигнут высший уровень в семье',
   }
 }
 
 export const GamificationService = {
   computeTaskRewardXp,
+  getRankXpMultiplier,
   getTierForXp,
   evaluateNewAchievements,
   nextStreakCount,

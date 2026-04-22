@@ -1,26 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
-import { MessageCircle, Send } from 'lucide-react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { MessageCircle } from 'lucide-react-native'
 import {
   ActivityIndicator,
-  FlatList,
   Keyboard,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { format } from 'date-fns'
-import { ru } from 'date-fns/locale'
-import { parseDate } from '../lib/utils'
 import { apiClient } from '../api/apiClient'
+import ChatConversation from '../components/ChatConversation'
 import ScreenBackground from '../components/ScreenBackground'
 import { useFamilyContext } from '../context/FamilyContext'
 import { useTabBar } from '../context/TabBarContext'
-import { colors, radius, spacing, typography } from '../theme'
+import { colors, spacing, typography } from '../theme'
 
 export default function FamilyChatScreen() {
   const { family, members, user, isLoading: familyLoading } = useFamilyContext()
@@ -28,14 +23,12 @@ export default function FamilyChatScreen() {
   const { handleScroll, show, hide } = useTabBar()
   const [message, setMessage] = useState('')
   const [kbHeight, setKbHeight] = useState(0)
-  const listRef = useRef(null)
   const queryClient = useQueryClient()
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ['family-chat', family?.id],
     queryFn: () => apiClient.getFamilyMessages(family.id),
     enabled: !!family?.id,
-    refetchInterval: 3500,
   })
 
   const sendMutation = useMutation({
@@ -59,14 +52,27 @@ export default function FamilyChatScreen() {
     return () => { showSub.remove(); hideSub.remove() }
   }, [hide, show])
 
-  useEffect(() => {
-    if (messages.length) listRef.current?.scrollToEnd({ animated: true })
-  }, [messages.length])
+  const getMemberMeta = useCallback(email => {
+    const member = members.find(m => m.user_email === email)
+    const displayName = member?.display_name || email
+    return {
+      displayName,
+      shortName: displayName.slice(0, 2).toUpperCase(),
+      avatarColor: member?.avatar_color || 'violet',
+    }
+  }, [members])
 
-  const getName = email => members.find(m => m.user_email === email)?.display_name || email
+  const onlineMembers = members
+    .filter(member => member.user_email)
+    .slice(0, 6)
+    .map(member => ({
+      key: String(member.id),
+      shortName: (member.display_name || '?').slice(0, 2).toUpperCase(),
+      avatarColor: member.avatar_color || 'violet',
+    }))
 
-  const handleSend = () => {
-    const text = message.trim()
+  const handleSend = (quickMessage) => {
+    const text = typeof quickMessage === 'string' ? quickMessage.trim() : message.trim()
     if (!text) return
     sendMutation.mutate(text)
   }
@@ -83,7 +89,7 @@ export default function FamilyChatScreen() {
   return (
     <ScreenBackground>
       <View style={[styles.flex, kbHeight > 0 && { paddingBottom: kbHeight }]}>
-        <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
+        <View style={[styles.container, { paddingTop: insets.top + 10 }]}> 
           <View style={styles.header}>
             <Text style={typography.caption}>Семейное общение</Text>
             <View style={styles.headerRow}>
@@ -92,50 +98,23 @@ export default function FamilyChatScreen() {
             </View>
           </View>
 
-          <FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={item => String(item.id)}
-            style={styles.list}
-            contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-            renderItem={({ item }) => {
-              const mine = item.user_email === user?.email
-              return (
-                <View style={[styles.msgWrap, mine ? styles.mineWrap : styles.otherWrap]}>
-                  {!mine ? <Text style={styles.sender}>{getName(item.user_email)}</Text> : null}
-                  <Text style={[styles.msgText, mine && styles.mineText]}>{item.message}</Text>
-                  <Text style={[styles.time, mine && styles.mineTime]}>
-                    {format(parseDate(item.created_at), 'HH:mm', { locale: ru })}
-                  </Text>
-                </View>
-              )
-            }}
-            ListEmptyComponent={<Text style={styles.empty}>Начните семейный диалог 👋</Text>}
-          />
+          <View style={styles.divider} />
 
-          <View style={[styles.inputRow, { paddingBottom: kbHeight > 0 ? Math.max(insets.bottom, 12) : Math.max(insets.bottom, 14) + 100 }]}>
-            <TextInput
-              style={styles.input}
-              value={message}
-              onChangeText={setMessage}
-              placeholder="Написать в общий чат..."
-              placeholderTextColor={colors.textMuted}
-              multiline
-              maxLength={800}
-              blurOnSubmit={false}
-            />
-            <Pressable
-              style={[styles.send, !message.trim() && styles.sendDisabled]}
-              onPress={handleSend}
-              disabled={!message.trim() || sendMutation.isLoading}
-            >
-              <Send size={18} color="#fff" />
-            </Pressable>
-          </View>
+          <ChatConversation
+            messages={messages}
+            message={message}
+            onChangeMessage={setMessage}
+            onSend={handleSend}
+            placeholder="Написать в общий чат..."
+            currentUserEmail={user?.email}
+            getMemberMeta={getMemberMeta}
+            isSending={sendMutation.isLoading}
+            bottomPadding={kbHeight > 0 ? Math.max(insets.bottom, 12) : Math.max(insets.bottom, 14) + 100}
+            onlineMembers={onlineMembers}
+            onScroll={handleScroll}
+            emptyTitle="Семейный диалог еще не начался"
+            emptyText="Напишите первое сообщение в общий чат."
+          />
         </View>
       </View>
     </ScreenBackground>
@@ -149,42 +128,5 @@ const styles = StyleSheet.create({
   header: { marginBottom: 10 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   title: { fontSize: 22, fontWeight: '800', color: colors.text },
-  list: { flex: 1 },
-  listContent: { paddingVertical: 6, gap: 10 },
-  msgWrap: {
-    maxWidth: '82%',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: radius.md,
-  },
-  mineWrap: { alignSelf: 'flex-end', backgroundColor: colors.primary },
-  otherWrap: { alignSelf: 'flex-start', backgroundColor: colors.surfaceStrong, borderWidth: 1, borderColor: colors.outline },
-  sender: { fontSize: 11, fontWeight: '700', color: colors.textSecondary, marginBottom: 3 },
-  msgText: { fontSize: 14, color: colors.text, lineHeight: 20 },
-  mineText: { color: '#fff' },
-  time: { fontSize: 10, color: colors.textMuted, marginTop: 4 },
-  mineTime: { color: 'rgba(255,255,255,0.8)' },
-  empty: { textAlign: 'center', color: colors.textMuted, marginTop: 40, fontSize: 14 },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingTop: 10 },
-  input: {
-    flex: 1,
-    backgroundColor: colors.surfaceStrong,
-    borderWidth: 1,
-    borderColor: colors.outline,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    maxHeight: 120,
-    fontSize: 14,
-    color: colors.text,
-  },
-  send: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendDisabled: { opacity: 0.5 },
+  divider: { height: 1, backgroundColor: '#EDE9FE', marginBottom: 10 },
 })

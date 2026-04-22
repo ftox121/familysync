@@ -13,6 +13,11 @@ const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   (detectedHost ? `http://${detectedHost}:3000/api` : 'http://localhost:3000/api')
 
+export const WS_URL = API_URL
+  .replace('https://', 'wss://')
+  .replace('http://', 'ws://')
+  .replace(/\/api$/, '/ws')
+
 class ApiClient {
   constructor() {
     this.token = null
@@ -284,9 +289,10 @@ class ApiClient {
     })
   }
 
-  async redeemReward(rewardId) {
+  async redeemReward(rewardId, memberEmail = null) {
     return this.request(`/rewards/${rewardId}/redeem`, {
       method: 'POST',
+      body: JSON.stringify(memberEmail ? { member_email: memberEmail } : {}),
     })
   }
 

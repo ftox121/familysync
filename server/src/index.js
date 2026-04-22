@@ -1,3 +1,4 @@
+import http from 'http'
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
@@ -7,6 +8,7 @@ import taskRoutes from './routes/task.js'
 import notificationRoutes from './routes/notification.js'
 import rewardRoutes from './routes/reward.js'
 import messageRoutes from './routes/message.js'
+import { setupWebSocket } from './ws.js'
 
 dotenv.config()
 
@@ -36,6 +38,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' })
 })
 
-app.listen(PORT, () => {
+const server = http.createServer(app)
+setupWebSocket(server)
+
+server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`)
+  console.log(`🔌 WebSocket ready on ws://localhost:${PORT}/ws`)
 })

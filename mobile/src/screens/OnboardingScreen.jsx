@@ -10,13 +10,15 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { apiClient } from '../api/apiClient'
 import AnimalAvatarPicker from '../components/AnimalAvatarPicker'
+import MemberAvatar from '../components/MemberAvatar'
 import { useFamilyContext } from '../context/FamilyContext'
-import { AVATAR_COLORS, generateInviteCode, ROLE_LABELS } from '../lib/utils'
+import { AVATAR_COLORS, AVATAR_PALETTE, generateInviteCode, ROLE_LABELS } from '../lib/utils'
 import { showError, showSuccess } from '../lib/toast'
-import { colors, spacing } from '../theme'
+import { colors, gradients, radius, spacing } from '../theme'
 
 export default function OnboardingScreen() {
   const { user, refresh } = useFamilyContext()
@@ -26,6 +28,7 @@ export default function OnboardingScreen() {
   const [displayName, setDisplayName] = useState(user?.full_name ?? '')
   const [role, setRole] = useState('parent')
   const [animalId, setAnimalId] = useState('cat')
+  const [avatarColor, setAvatarColor] = useState('violet')
   const [joinCode, setJoinCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [focusedField, setFocusedField] = useState(null)
@@ -33,8 +36,6 @@ export default function OnboardingScreen() {
   useEffect(() => {
     if (user?.full_name) setDisplayName(d => d || user.full_name)
   }, [user?.full_name])
-
-  const randomColor = () => AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]
 
   const handleCreate = async () => {
     if (!familyName.trim() || !displayName.trim()) {
@@ -53,7 +54,7 @@ export default function OnboardingScreen() {
         user_email: user.email,
         display_name: displayName.trim(),
         role,
-        avatar_color: randomColor(),
+        avatar_color: avatarColor,
         animal_id: animalId,
       })
 
@@ -81,7 +82,7 @@ export default function OnboardingScreen() {
         invite_code: joinCode.toUpperCase().trim(),
         display_name: displayName.trim(),
         role,
-        avatar_color: randomColor(),
+        avatar_color: avatarColor,
         animal_id: animalId,
       })
 
@@ -95,26 +96,26 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <View style={[styles.flex, { paddingTop: insets.top }]}>
+    <LinearGradient colors={gradients.screen} style={styles.flex}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={insets.top}
       >
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 8 }]}
           keyboardShouldPersistTaps="always"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
-          {/* декоративные пятна */}
+          {/* decorative blobs */}
           <View style={styles.blob1} pointerEvents="none" />
           <View style={styles.blob2} pointerEvents="none" />
 
           <View style={styles.hero}>
-            <View style={styles.iconWrap}>
-              <Sparkles size={32} color={colors.onboardAccent} />
-            </View>
+            <LinearGradient colors={gradients.primary} style={styles.iconWrap}>
+              <Sparkles size={28} color="#fff" />
+            </LinearGradient>
             <Text style={styles.h1}>СемьяПлан</Text>
             <Text style={styles.sub}>Совместное управление семейными делами</Text>
           </View>
@@ -128,7 +129,7 @@ export default function OnboardingScreen() {
                 pressed && styles.tabPressed,
               ]}
             >
-              <Users size={16} color={tab === 'create' ? colors.onboardBg : colors.onboardMuted} />
+              <Users size={15} color={tab === 'create' ? '#fff' : colors.textMuted} />
               <Text style={[styles.tabText, tab === 'create' && styles.tabTextActive]}>Создать</Text>
             </Pressable>
             <Pressable
@@ -139,12 +140,44 @@ export default function OnboardingScreen() {
                 pressed && styles.tabPressed,
               ]}
             >
-              <UserPlus size={16} color={tab === 'join' ? colors.onboardBg : colors.onboardMuted} />
+              <UserPlus size={15} color={tab === 'join' ? '#fff' : colors.textMuted} />
               <Text style={[styles.tabText, tab === 'join' && styles.tabTextActive]}>По коду</Text>
             </Pressable>
           </View>
 
           <View style={styles.card}>
+            {/* avatar preview */}
+            <View style={styles.avatarPreview}>
+              <MemberAvatar
+                name={displayName || '?'}
+                color={avatarColor}
+                animalId={animalId}
+                size="xl"
+              />
+            </View>
+
+            <Text style={styles.label}>Цвет аватара</Text>
+            <View style={styles.colorRow}>
+              {AVATAR_COLORS.map(c => {
+                const pal = AVATAR_PALETTE[c]
+                return (
+                  <Pressable
+                    key={c}
+                    onPress={() => setAvatarColor(c)}
+                    style={[
+                      styles.colorDot,
+                      { backgroundColor: pal.bg, borderColor: pal.text },
+                      avatarColor === c && styles.colorDotSelected,
+                    ]}
+                  >
+                    {avatarColor === c && (
+                      <View style={[styles.colorDotInner, { backgroundColor: pal.text }]} />
+                    )}
+                  </Pressable>
+                )
+              })}
+            </View>
+
             <Text style={styles.label}>Ваше имя</Text>
             <TextInput
               style={[
@@ -155,11 +188,11 @@ export default function OnboardingScreen() {
               value={displayName}
               onChangeText={setDisplayName}
               placeholder="Как вас называть?"
-              placeholderTextColor={colors.onboardMuted}
+              placeholderTextColor={colors.textMuted}
               editable={!loading}
               onFocus={() => setFocusedField('name')}
               onBlur={() => setFocusedField(null)}
-              returnKeyType={tab === 'create' ? 'next' : 'next'}
+              returnKeyType="next"
             />
 
             {tab === 'create' ? (
@@ -174,7 +207,7 @@ export default function OnboardingScreen() {
                   value={familyName}
                   onChangeText={setFamilyName}
                   placeholder="Например: Семья Ивановых"
-                  placeholderTextColor={colors.onboardMuted}
+                  placeholderTextColor={colors.textMuted}
                   editable={!loading}
                   onFocus={() => setFocusedField('family')}
                   onBlur={() => setFocusedField(null)}
@@ -217,7 +250,7 @@ export default function OnboardingScreen() {
                   value={joinCode}
                   onChangeText={setJoinCode}
                   placeholder="XXXXXX"
-                  placeholderTextColor={colors.onboardMuted}
+                  placeholderTextColor={colors.textMuted}
                   autoCapitalize="characters"
                   maxLength={6}
                   editable={!loading}
@@ -236,19 +269,28 @@ export default function OnboardingScreen() {
               onPress={tab === 'create' ? handleCreate : handleJoin}
               disabled={loading}
             >
-              <Text style={styles.ctaText}>
-                {loading ? (tab === 'create' ? 'Создаём...' : 'Вход...') : tab === 'create' ? 'Создать семью' : 'Присоединиться'}
-              </Text>
+              <LinearGradient
+                colors={gradients.primaryBtn}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.ctaGradient}
+              >
+                <Text style={styles.ctaText}>
+                  {loading
+                    ? tab === 'create' ? 'Создаём...' : 'Вход...'
+                    : tab === 'create' ? 'Создать семью' : 'Присоединиться'}
+                </Text>
+              </LinearGradient>
             </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </LinearGradient>
   )
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.onboardBg },
+  flex: { flex: 1 },
   scroll: {
     padding: spacing.screen,
     paddingBottom: 48,
@@ -260,134 +302,169 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: colors.onboardAccent2,
-    opacity: 0.12,
+    backgroundColor: colors.primary,
+    opacity: 0.08,
   },
   blob2: {
     position: 'absolute',
-    top: 120,
+    top: 140,
     left: -50,
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: colors.onboardAccent,
+    backgroundColor: colors.accent,
     opacity: 0.1,
   },
   hero: { alignItems: 'center', marginBottom: 24, marginTop: 8 },
   iconWrap: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    backgroundColor: colors.onboardSurface2,
-    borderWidth: 1,
-    borderColor: colors.onboardBorder,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
   h1: {
     fontSize: 26,
     fontWeight: '800',
-    color: colors.onboardText,
+    color: colors.text,
     letterSpacing: -0.5,
   },
-  sub: { fontSize: 14, color: colors.onboardMuted, marginTop: 8, textAlign: 'center', maxWidth: 280 },
+  sub: { fontSize: 14, color: colors.textSecondary, marginTop: 6, textAlign: 'center', maxWidth: 280 },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: colors.onboardSurface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 4,
-    marginBottom: 20,
+    marginBottom: 18,
     gap: 6,
     borderWidth: 1,
-    borderColor: colors.onboardBorder,
+    borderColor: colors.outline,
   },
   tab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
+    gap: 7,
+    paddingVertical: 11,
     borderRadius: 12,
   },
   tabInactive: { backgroundColor: 'transparent' },
   tabActive: {
-    backgroundColor: colors.onboardAccent,
-    shadowColor: colors.onboardAccent,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.45,
-    shadowRadius: 12,
+    shadowRadius: 10,
     elevation: 6,
   },
   tabPressed: { opacity: 0.88 },
-  tabText: { fontSize: 13, color: colors.onboardMuted, fontWeight: '600' },
-  tabTextActive: { color: colors.onboardBg },
+  tabText: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
+  tabTextActive: { color: '#fff' },
   card: {
-    backgroundColor: colors.onboardSurface,
-    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderRadius: 22,
     padding: 18,
     borderWidth: 1,
-    borderColor: colors.onboardBorder,
+    borderColor: colors.outline,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  avatarPreview: {
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 4,
   },
   label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.onboardMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textMuted,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
+  colorRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+    flexWrap: 'wrap',
+  },
+  colorDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorDotSelected: {
+    transform: [{ scale: 1.2 }],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  colorDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
   input: {
     borderWidth: 1.5,
-    borderColor: colors.onboardBorder,
-    borderRadius: 14,
+    borderColor: colors.outline,
+    borderRadius: radius.md,
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'ios' ? 14 : 12,
     fontSize: 16,
-    color: colors.onboardText,
-    backgroundColor: colors.onboardSurface2,
+    color: colors.text,
+    backgroundColor: colors.surfaceStrong,
     marginBottom: 16,
   },
   inputFocused: {
-    borderColor: colors.onboardAccent,
-    shadowColor: colors.onboardAccent,
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
   inputDisabled: { opacity: 0.55 },
   mono: { letterSpacing: 6, fontWeight: '700' },
   roleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   roleChip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: colors.onboardSurface2,
-    borderWidth: 1,
-    borderColor: colors.onboardBorder,
+    backgroundColor: colors.surfaceStrong,
+    borderWidth: 1.5,
+    borderColor: colors.outline,
   },
   roleChipOn: {
-    backgroundColor: 'rgba(34,211,238,0.2)',
-    borderColor: colors.onboardAccent,
+    backgroundColor: colors.primaryMuted,
+    borderColor: colors.primary,
   },
-  roleChipPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-  roleChipText: { fontSize: 13, color: colors.onboardMuted, fontWeight: '600' },
-  roleChipTextOn: { color: colors.onboardAccent },
+  roleChipPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
+  roleChipText: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
+  roleChipTextOn: { color: colors.primaryDark },
   cta: {
-    backgroundColor: colors.onboardAccent2,
-    borderRadius: 16,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  ctaGradient: {
     paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.5)',
   },
-  ctaPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.985 }],
-  },
+  ctaPressed: { opacity: 0.9, transform: [{ scale: 0.985 }] },
   ctaDisabled: { opacity: 0.5 },
   ctaText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 })

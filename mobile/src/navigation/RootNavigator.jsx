@@ -2,6 +2,7 @@ import { NavigationContainer, DefaultTheme } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { useFamilyContext } from '../context/FamilyContext'
 import AnalyticsScreen from '../screens/AnalyticsScreen'
+import RankDetailScreen from '../ranks/RankDetailScreen'
 import OnboardingScreen from '../screens/OnboardingScreen'
 import WelcomeScreen from '../screens/WelcomeScreen'
 import TaskDetailScreen from '../screens/TaskDetailScreen'
@@ -45,6 +46,7 @@ export default function RootNavigator() {
               options={{ animation: 'slide_from_right' }}
             />
             <Stack.Screen name="Analytics" component={AnalyticsScreen} />
+            <Stack.Screen name="RankDetail" component={RankDetailScreen} options={{ animation: 'slide_from_bottom' }} />
           </>
         )}
       </Stack.Navigator>
