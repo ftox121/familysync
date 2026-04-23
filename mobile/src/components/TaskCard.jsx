@@ -8,9 +8,9 @@ import { colors, radius, shadows } from '../theme'
 import MemberAvatar from './MemberAvatar'
 
 const PRIORITY = {
-  high: { bar: [colors.priorityHigh, '#f87171'], label: 'Высокий' },
-  medium: { bar: [colors.priorityMed, '#fbbf24'], label: 'Средний' },
-  low: { bar: [colors.priorityLow, '#34d399'], label: 'Низкий' },
+  high:   { bar: ['#ef4444', '#b91c1c'], label: 'Высокий' },
+  medium: { bar: ['#f59e0b', '#d97706'], label: 'Средний' },
+  low:    { bar: ['#22c55e', '#15803d'], label: 'Низкий'  },
 }
 
 const STATUS_STYLES = {

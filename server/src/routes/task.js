@@ -333,8 +333,12 @@ router.post('/:id/participants/complete', authMiddleware, async (req, res) => {
     const participant = task.participants.find(p => p.user_email === req.user.email)
     if (!participant) return res.status(403).json({ error: 'You are not a participant of this quest' })
 
+    if (participant.status === 'completed') {
+      return res.status(400).json({ error: 'You have already completed this quest' })
+    }
+
     await query(
-      'UPDATE quest_participants SET status = $1, completed_at = CURRENT_TIMESTAMP WHERE task_id = $2 AND user_email = $3',
+      'UPDATE quest_participants SET status = $1, completed_at = CURRENT_TIMESTAMP WHERE task_id = $2 AND user_email = $3 AND status != $1',
       ['completed', task.id, req.user.email]
     )
 

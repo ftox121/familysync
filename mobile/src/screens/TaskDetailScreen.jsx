@@ -4,7 +4,7 @@ import { ru } from 'date-fns/locale'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Picker } from '@react-native-picker/picker'
 import { parseDate } from '../lib/utils'
-import { ArrowLeft, CheckCircle2, Clock, Pencil, Sparkles, Star, Trash2, X } from 'lucide-react-native'
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, Hourglass, Pencil, Sparkles, Star, Trash2, X } from 'lucide-react-native'
 import {
   ActivityIndicator,
   Alert,
@@ -454,6 +454,28 @@ export default function TaskDetailScreen({ navigation, route }) {
           </View>
         </View>
 
+        {/* #5 — баннер для ребёнка когда задача ждёт проверки */}
+        {isChild && task.status === 'pending_confirmation' && (
+          <View style={styles.pendingBanner}>
+            <Hourglass size={16} color="#7c3aed" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pendingBannerTitle}>Ожидает проверки родителя</Text>
+              <Text style={styles.pendingBannerSub}>Родитель получил уведомление и скоро подтвердит выполнение</Text>
+            </View>
+          </View>
+        )}
+
+        {/* #6 — баннер штрафа за просрочку */}
+        {!!task.overdue_penalty_applied && (
+          <View style={styles.penaltyBanner}>
+            <AlertTriangle size={16} color="#dc2626" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.penaltyBannerTitle}>Списано {task.overdue_penalty_points} ★ за просрочку</Text>
+              <Text style={styles.penaltyBannerSub}>Дедлайн был пропущен — начисление уменьшено автоматически</Text>
+            </View>
+          </View>
+        )}
+
         {!task.is_quest && !isChild && task.status !== 'completed' && task.status !== 'pending_confirmation' && (
           <Pressable
             style={[styles.cta, styles.ctaInline, loading && styles.ctaDisabled]}
@@ -808,6 +830,30 @@ const styles = StyleSheet.create({
   ctaSecondaryText: { color: colors.primary, fontWeight: '700', fontSize: 15 },
   ctaDisabled: { opacity: 0.6 },
   ctaText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#f3e8ff',
+    borderWidth: 1,
+    borderColor: '#d8b4fe',
+  },
+  pendingBannerTitle: { fontSize: 13, fontWeight: '700', color: '#7c3aed', marginBottom: 2 },
+  pendingBannerSub: { fontSize: 12, color: '#9333ea', lineHeight: 18 },
+  penaltyBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#fff1f2',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+  },
+  penaltyBannerTitle: { fontSize: 13, fontWeight: '700', color: '#dc2626', marginBottom: 2 },
+  penaltyBannerSub: { fontSize: 12, color: '#ef4444', lineHeight: 18 },
   doneAt: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 8 },
   missing: { fontSize: 16, color: colors.textSecondary, marginBottom: 16 },
   backLink: { paddingVertical: 12, paddingHorizontal: 20 },

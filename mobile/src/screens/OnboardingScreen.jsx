@@ -178,7 +178,7 @@ export default function OnboardingScreen() {
               })}
             </View>
 
-            <Text style={styles.label}>Ваше имя</Text>
+            <Text style={styles.label}>Как вас зовут?</Text>
             <TextInput
               style={[
                 styles.input,
@@ -187,7 +187,7 @@ export default function OnboardingScreen() {
               ]}
               value={displayName}
               onChangeText={setDisplayName}
-              placeholder="Как вас называть?"
+              placeholder="Введите ваше имя"
               placeholderTextColor={colors.textMuted}
               editable={!loading}
               onFocus={() => setFocusedField('name')}

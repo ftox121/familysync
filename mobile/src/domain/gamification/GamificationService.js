@@ -251,9 +251,12 @@ export function nextOnTimeStreak(previousOnTime, wasOnTime) {
 
 export function wasTaskCompletedOnTime(task) {
   if (!task.due_date || !task.completed_at) return true
+  // Use explicit UTC end-of-day so the comparison is consistent regardless of
+  // the device's local timezone. If due_date already has a time component ('T'),
+  // parse it as-is (it carries its own offset).
   const dueEnd = task.due_date.includes('T')
     ? new Date(task.due_date)
-    : new Date(task.due_date + 'T23:59:59')
+    : new Date(task.due_date + 'T23:59:59Z')
   return new Date(task.completed_at) <= dueEnd
 }
 

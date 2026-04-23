@@ -213,11 +213,11 @@ describe('wasTaskCompletedOnTime', () => {
     })).toBe(true)
   })
 
-  test('true when completed early same day as due date', () => {
-    // Use a clearly-before-end-of-day local time to avoid timezone edge cases
+  test('true when completed on due date (UTC end-of-day)', () => {
+    // After fix #8: due_date without time becomes T23:59:59Z (UTC)
     expect(wasTaskCompletedOnTime({
       due_date: '2026-04-22',
-      completed_at: '2026-04-22T08:00:00',
+      completed_at: '2026-04-22T23:59:00Z',
     })).toBe(true)
   })
 

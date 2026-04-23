@@ -101,7 +101,7 @@ const RARITY_META = {
   legendary: { label: 'Legendary', color: '#F59E0B', badgeColor: '#92400E', badgeBg: '#FEF3C7', border: '#FCD34D' },
 }
 
-const EMOJI_PRESETS = ['🎁','🍕','🍦','🎮','🎬','🛁','🎨','🚴','⚽','🎤','🏖','🍩','🪀','🐾','🌟','🏆','💎','🎠','🧸','🌈']
+const EMOJI_PRESETS = ['🎁','🍕','🍦','🎮','🎬','💰','🎨','🚴','⚽','🎤','🏖','🍩','🪀','🐾','🌟','🏆','💎','🎠','🧸','🌈']
 
 function useLoopValue(from, to, duration) {
   const animated = useState(() => new Animated.Value(from))[0]
@@ -266,7 +266,7 @@ export default function RewardsScreen() {
         title: newTitle.trim(),
         description: newDesc.trim(),
         points_cost: cost,
-        type: newType,
+        type: 'privilege',
         rarity: newRarity,
       })
       queryClient.invalidateQueries({ queryKey: ['rewards'] })
@@ -534,19 +534,6 @@ export default function RewardsScreen() {
                   placeholder="50"
                   placeholderTextColor={colors.textMuted}
                 />
-              </View>
-
-              <Text style={styles.fieldLabel}>Тип</Text>
-              <View style={styles.chipRow}>
-                {TYPE_OPTIONS.map(o => (
-                  <Pressable
-                    key={o.value}
-                    style={[styles.optChip, newType === o.value && styles.optChipActive]}
-                    onPress={() => setNewType(o.value)}
-                  >
-                    <Text style={[styles.optChipText, newType === o.value && styles.optChipTextActive]}>{o.label}</Text>
-                  </Pressable>
-                ))}
               </View>
 
               <Text style={styles.fieldLabel}>Редкость</Text>

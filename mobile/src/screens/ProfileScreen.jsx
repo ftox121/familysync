@@ -28,7 +28,6 @@ import { useFamilyContext } from '../context/FamilyContext'
 import { useTabBar } from '../context/TabBarContext'
 import { ROLE_LABELS, AVATAR_COLORS, AVATAR_PALETTE } from '../lib/utils'
 import { ANIMAL_AVATARS } from '../lib/avatars'
-import { RANK_ANALYTICS_MIN_XP } from '../ranks/ranks'
 import { showSuccess } from '../lib/toast'
 import { getStreakData } from '../lib/streakStorage'
 import { colors, gradients, radius, shadows, spacing, typography } from '../theme'
@@ -118,15 +117,13 @@ function RankBadge({ tierVm, onPress }) {
         </Animated.Text>
         <View style={{ flex: 1 }}>
           <Text style={rankStyles.name}>«{tierVm.tier.title}»</Text>
+          <Text style={rankStyles.xpLine}>{tierVm.currentXp ?? 0} ★ · {pct}% пути</Text>
           {tierVm.nextTier
-            ? <Text style={rankStyles.sub}>До «{tierVm.nextTier.title}»: {tierVm.xpToNext} XP</Text>
+            ? <Text style={rankStyles.sub}>Осталось {tierVm.xpToNext} ★ до «{tierVm.nextTier.title}»</Text>
             : <Text style={rankStyles.sub}>Все уровни открыты 🎉</Text>
           }
         </View>
-        <View style={{ alignItems: 'flex-end', gap: 2 }}>
-          <Text style={rankStyles.xp}>{tierVm.currentXp ?? 0} XP</Text>
-          <Text style={rankStyles.arrow}>›</Text>
-        </View>
+        <Text style={rankStyles.arrow}>›</Text>
       </View>
 
       <Sparkle x={220} y={4}  color="#A78BFA" delay={0} />
@@ -162,9 +159,9 @@ const rankStyles = StyleSheet.create({
   inner:  { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   emoji:  { fontSize: 22 },
   name:   { fontWeight: '800', fontSize: 15, color: colors.text },
-  sub:    { fontWeight: '600', fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  xp:     { fontWeight: '800', fontSize: 14, color: colors.primary },
-  arrow:  { fontWeight: '300', fontSize: 22, color: colors.primary, lineHeight: 20 },
+  xpLine: { fontWeight: '700', fontSize: 12, color: colors.primary, marginTop: 2 },
+  sub:    { fontWeight: '600', fontSize: 11, color: colors.textMuted, marginTop: 1 },
+  arrow:  { fontWeight: '300', fontSize: 22, color: colors.primary, lineHeight: 32 },
   track:  { height: 8, borderRadius: radius.full, backgroundColor: colors.muted, overflow: 'hidden' },
   fill:   { height: '100%', borderRadius: radius.full, overflow: 'hidden' },
 })
@@ -269,7 +266,8 @@ export default function ProfileScreen({ navigation }) {
       </ScreenBackground>
     )
 
-  const tierVm = GamificationService.getTierForXp(currentMembership?.points ?? 0)
+  const memberXp = currentMembership?.points ?? 0
+  const tierVm = { ...GamificationService.getTierForXp(memberXp), currentXp: memberXp }
   const achUnlocked = (() => {
     try {
       const j = JSON.parse(currentMembership?.achievements_json || '[]')
@@ -454,43 +452,20 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </Animated.View>
 
-        {/* Analytics */}
-        {(() => {
-          const memberXp = currentMembership?.points ?? 0
-          const analyticsUnlocked = memberXp >= RANK_ANALYTICS_MIN_XP
-          return (
-            <Animated.View style={s300}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.analyticsBtn, shadows.card,
-                  pressed && { opacity: 0.92 },
-                  !analyticsUnlocked && { opacity: 0.6 },
-                ]}
-                onPress={() => {
-                  if (!analyticsUnlocked) {
-                    Alert.alert(
-                      '🔒 Аналитика заблокирована',
-                      `Разблокируется на уровне «Семейный карандаш» (800 XP).\nСейчас у вас ${memberXp} XP.`
-                    )
-                    return
-                  }
-                  navigation.navigate('Analytics')
-                }}
-              >
-                <BarChart3 size={22} color={analyticsUnlocked ? colors.primary : colors.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.analyticsTitle, !analyticsUnlocked && { color: colors.textMuted }]}>
-                    Аналитика семьи
-                  </Text>
-                  <Text style={styles.analyticsSub}>
-                    {analyticsUnlocked ? 'Просрочки, графики, рейтинг' : `🔒 Открывается в «Семейном карандаше»`}
-                  </Text>
-                </View>
-                <Text style={[styles.analyticsChev, !analyticsUnlocked && { color: colors.textMuted }]}>›</Text>
-              </Pressable>
-            </Animated.View>
-          )
-        })()}
+        {/* Analytics — always accessible */}
+        <Animated.View style={s300}>
+          <Pressable
+            style={({ pressed }) => [styles.analyticsBtn, shadows.card, pressed && { opacity: 0.92 }]}
+            onPress={() => navigation.navigate('Analytics')}
+          >
+            <BarChart3 size={22} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.analyticsTitle}>Аналитика семьи</Text>
+              <Text style={styles.analyticsSub}>Просрочки, графики, рейтинг</Text>
+            </View>
+            <Text style={styles.analyticsChev}>›</Text>
+          </Pressable>
+        </Animated.View>
 
         {/* Active rewards */}
         <Animated.View style={[styles.card, shadows.card, s360, { marginBottom: 16 }]}>
