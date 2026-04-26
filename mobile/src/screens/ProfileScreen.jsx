@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import * as Clipboard from 'expo-clipboard'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BarChart3, Check, Copy, LogOut, Pencil, Sparkles, Trash2, Users, X } from 'lucide-react-native'
+import { BarChart3, Check, Copy, LogOut, Pencil, Trash2, Users, X } from 'lucide-react-native'
 import {
   ActivityIndicator,
   Alert,
@@ -244,13 +243,6 @@ export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets()
   const { handleScroll, show } = useTabBar()
 
-  const { data: rewardClaims = [] } = useQuery({
-    queryKey: ['reward-claims', family?.id],
-    queryFn: () => apiClient.getRewardClaims(family.id),
-    enabled: !!family?.id,
-    refetchInterval: 30_000,
-  })
-
   useEffect(() => { show() }, [show])
 
   useEffect(() => {
@@ -276,9 +268,6 @@ export default function ProfileScreen({ navigation }) {
   })()
   const myTasks    = tasks.filter(t => t.assigned_to === user?.email)
   const myCompleted = myTasks.filter(t => t.status === 'completed').length
-  const activeRewards = rewardClaims.filter(claim =>
-    claim.user_email === user?.email && (claim.status === 'approved' || claim.status === 'active')
-  )
 
   const handleCopy = async () => {
     const code = family?.invite_code ?? ''
@@ -465,44 +454,6 @@ export default function ProfileScreen({ navigation }) {
             </View>
             <Text style={styles.analyticsChev}>›</Text>
           </Pressable>
-        </Animated.View>
-
-        {/* Active rewards */}
-        <Animated.View style={[styles.card, shadows.card, s360, { marginBottom: 16 }]}>
-          <View style={styles.artifactsTop}>
-            <View style={styles.artifactsTitleRow}>
-              <Sparkles size={18} color={colors.primary} />
-              <Text style={styles.artifactsTitle}>Активные награды</Text>
-            </View>
-            <View style={styles.artifactsCountPill}>
-              <Text style={styles.artifactsCountText}>{activeRewards.length}</Text>
-            </View>
-          </View>
-
-          {activeRewards.length === 0 ? (
-            <View style={styles.artifactsEmpty}>
-              <Text style={styles.artifactsEmptyTitle}>Нет активных наград</Text>
-              <Text style={styles.artifactsEmptyText}>
-                Получённые и одобренные родителем награды появятся здесь.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.artifactsList}>
-              {activeRewards.map(claim => (
-                <View key={claim.id} style={styles.artifactRow}>
-                  <View style={styles.artifactIconWrap}>
-                    <Text style={styles.artifactIcon}>{claim.icon || '🎁'}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.artifactName}>{claim.title}</Text>
-                    <Text style={styles.artifactMetaText}>
-                      {claim.type === 'privilege' ? 'Привилегия' : 'Предмет'} · активна
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
         </Animated.View>
 
         {/* Achievements */}

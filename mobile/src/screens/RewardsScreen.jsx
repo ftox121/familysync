@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { CheckCircle2, Clock, Coins, Plus, X } from 'lucide-react-native'
+import { CheckCircle2, Clock, Coins, Plus, ShoppingBag, X } from 'lucide-react-native'
 import {
   ActivityIndicator,
   Alert,
-  Animated,
-  Easing,
   FlatList,
   Modal,
   Pressable,
@@ -26,7 +24,6 @@ import { useFamilyContext } from '../context/FamilyContext'
 import { addStaticRewardClaim, getStaticRewardClaims } from '../lib/staticRewardClaimsStorage'
 import { useTabBar } from '../context/TabBarContext'
 import { showError, showSuccess } from '../lib/toast'
-import { getRankByXP } from '../ranks/ranks'
 import { colors, radius, spacing } from '../theme'
 
 const STATIC_REWARDS = [
@@ -103,60 +100,11 @@ const RARITY_META = {
 
 const EMOJI_PRESETS = ['🎁','🍕','🍦','🎮','🎬','💰','🎨','🚴','⚽','🎤','🏖','🍩','🪀','🐾','🌟','🏆','💎','🎠','🧸','🌈']
 
-function useLoopValue(from, to, duration) {
-  const animated = useState(() => new Animated.Value(from))[0]
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(animated, {
-          toValue: to,
-          duration,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(animated, {
-          toValue: from,
-          duration,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    )
-    loop.start()
-    return () => loop.stop()
-  }, [animated, duration, from, to])
-
-  return animated
-}
-
 function StarIcon({ color, size = 12 }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill={color} />
     </Svg>
-  )
-}
-
-function RewardsBalanceCard({ points }) {
-  const scale = useLoopValue(1, 1.04, 2000)
-  const rank = getRankByXP(points)
-
-  return (
-    <View style={styles.balanceCard}>
-      <View>
-        <Text style={styles.balanceLabel}>Ваш баланс</Text>
-        <View style={styles.balanceRow}>
-          <Animated.View style={{ transform: [{ scale }] }}>
-            <StarIcon color="#FCD34D" size={18} />
-          </Animated.View>
-          <Text style={styles.balanceValue}>{points} ★</Text>
-        </View>
-      </View>
-      <View style={styles.rankBadge}>
-        <Text style={styles.rankBadgeText}>{{ novice: 'Новичок', responsible: 'Ответственный', reliable: 'Надёжный', guardian: 'Хранитель семьи' }[rank.key] || rank.name} {rank.emoji}</Text>
-      </View>
-    </View>
   )
 }
 
@@ -179,7 +127,8 @@ export default function RewardsScreen() {
   const activeChild = isParent ? selectedChild : currentMembership
   const currentPoints = activeChild?.points || 0
 
-  // Create reward modal state
+  // Modal state
+  const [cartVisible, setCartVisible] = useState(false)
   const [createVisible, setCreateVisible] = useState(false)
   const [newIcon, setNewIcon] = useState('🎁')
   const [newTitle, setNewTitle] = useState('')
@@ -323,27 +272,30 @@ export default function RewardsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.subtitle}>Игровые награды</Text>
                 <Text style={styles.title}>Магазин</Text>
-                <Text style={styles.hint}> 
-                  {isParent
-                    ? (selectedChild ? `${selectedChild.display_name}: ${currentPoints} ★` : 'Выберите ребёнка')
-                    : `У вас ${currentPoints} ★`}
-                </Text>
-              </View>
-              <View style={styles.rightCol}>
                 {!isParent && (
-                  <View style={styles.pointsCard}>
-                    <Text style={styles.pointsValue}>{currentPoints} ★</Text>
+                  <View style={styles.balancePill}>
+                    <StarIcon color="#FCD34D" size={14} />
+                    <Text style={styles.balancePillText}>{currentPoints} ★</Text>
                   </View>
                 )}
-                {isParent && (
-                  <Pressable style={styles.addBtn} onPress={openCreate}>
-                    <Plus size={18} color="#fff" />
+              </View>
+              <View style={styles.rightCol}>
+                {isParent ? (
+                  <Pressable style={styles.headerBtn} onPress={openCreate} hitSlop={8}>
+                    <Plus size={20} color="#fff" />
+                  </Pressable>
+                ) : (
+                  <Pressable style={styles.headerBtn} onPress={() => setCartVisible(true)} hitSlop={8}>
+                    <ShoppingBag size={18} color="#fff" />
+                    {visibleClaims.length > 0 && (
+                      <View style={styles.cartBadge}>
+                        <Text style={styles.cartBadgeText}>{visibleClaims.length}</Text>
+                      </View>
+                    )}
                   </Pressable>
                 )}
               </View>
             </View>
-
-            <RewardsBalanceCard points={currentPoints} />
 
             {isParent && childMembers.length > 0 && (
               <View style={styles.childSelectorRow}>
@@ -385,9 +337,9 @@ export default function RewardsScreen() {
               ))}
             </ScrollView>
 
-            {visibleClaims.length > 0 && (
+            {isParent && visibleClaims.length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>Мои награды</Text>
+                <Text style={styles.sectionLabel}>Награды ребёнка</Text>
                 {visibleClaims.map(claim => {
                   const isActive = claim.status === 'active'
                   const isPending = claim.status === 'pending'
@@ -467,6 +419,80 @@ export default function RewardsScreen() {
           )
         }}
       />
+
+      {/* Modal корзинки (купленные награды ребёнка) */}
+      <Modal visible={cartVisible} animationType="slide" transparent onRequestClose={() => setCartVisible(false)}>
+        <Pressable style={styles.overlay} onPress={() => setCartVisible(false)}>
+          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]} onPress={e => e.stopPropagation()}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Мои награды</Text>
+              <Pressable onPress={() => setCartVisible(false)} hitSlop={12}>
+                <X size={22} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            {visibleClaims.length === 0 ? (
+              <View style={styles.cartEmpty}>
+                <Text style={{ fontSize: 40, marginBottom: 12 }}>🛍️</Text>
+                <Text style={styles.cartEmptyTitle}>Корзинка пуста</Text>
+                <Text style={styles.cartEmptyText}>
+                  Покупайте награды в магазине — они появятся здесь.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {visibleClaims.map(claim => {
+                  const isActive = claim.status === 'active'
+                  const isPending = claim.status === 'pending'
+                  const isApproved = claim.status === 'approved'
+                  return (
+                    <View key={claim.id} style={[styles.claimCard, isActive && styles.claimCardActive]}>
+                      <Text style={styles.claimIcon}>{claim.icon || '🎁'}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.claimTitle}>{claim.title}</Text>
+                        {isActive && claim.active_until && (
+                          <View style={styles.claimMeta}>
+                            <Clock size={11} color={colors.primary} />
+                            <Text style={styles.claimMetaText}>
+                              До {format(new Date(claim.active_until), 'd MMM, HH:mm', { locale: ru })}
+                            </Text>
+                          </View>
+                        )}
+                        {isPending && (
+                          <Text style={[styles.claimMetaText, { color: colors.textMuted }]}>
+                            Ожидает подтверждения
+                          </Text>
+                        )}
+                        {isApproved && (
+                          <View style={styles.claimMeta}>
+                            <CheckCircle2 size={11} color={colors.success} />
+                            <Text style={[styles.claimMetaText, { color: colors.success }]}>Одобрено</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={[
+                        styles.claimBadge,
+                        isActive && styles.claimBadgeActive,
+                        isPending && styles.claimBadgePending,
+                        isApproved && styles.claimBadgeApproved,
+                      ]}>
+                        <Text style={[
+                          styles.claimBadgeText,
+                          isActive && styles.claimBadgeTextActive,
+                          isPending && { color: colors.textMuted },
+                          isApproved && { color: colors.success },
+                        ]}>
+                          {isActive ? 'Активна' : isPending ? 'Ожидание' : 'Получена'}
+                        </Text>
+                      </View>
+                    </View>
+                  )
+                })}
+              </ScrollView>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Modal создания награды */}
       <Modal visible={createVisible} animationType="slide" transparent onRequestClose={() => setCreateVisible(false)}>
@@ -580,21 +606,25 @@ const styles = StyleSheet.create({
   },
   subtitle: { fontWeight: '700', fontSize: 13, color: '#A78BFA' },
   title: { fontWeight: '900', fontSize: 30, color: '#1E1B4B', lineHeight: 34 },
-  hint: { fontWeight: '600', fontSize: 13, color: '#9CA3AF', marginTop: 2 },
   rightCol: { alignItems: 'flex-end', gap: 8 },
-  pointsCard: {
-    minWidth: 66,
+  balancePill: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceStrong,
+    gap: 6,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.outline,
+    backgroundColor: '#7C3AED',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  pointsValue: { fontSize: 14, fontWeight: '800', color: colors.text },
-  addBtn: {
+  balancePillText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  headerBtn: {
     width: 42, height: 42, borderRadius: 21,
     backgroundColor: '#7C3AED',
     alignItems: 'center', justifyContent: 'center',
@@ -604,25 +634,23 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  balanceCard: {
-    backgroundColor: '#7C3AED',
-    borderRadius: 18,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-    marginBottom: 14,
+  cartBadge: {
+    position: 'absolute',
+    top: -4, right: -4,
+    minWidth: 18, height: 18, borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#EF4444',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff',
   },
-  balanceLabel: { color: 'rgba(255,255,255,0.7)', fontWeight: '700', fontSize: 12 },
-  balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  balanceValue: { color: '#fff', fontWeight: '900', fontSize: 24 },
-  rankBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  rankBadgeText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  cartBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  cartEmpty: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 16,
+  },
+  cartEmptyTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: 6 },
+  cartEmptyText: { fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 18 },
   promo: {
     backgroundColor: '#EDE9FE',
     borderRadius: 18,
