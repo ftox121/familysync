@@ -272,10 +272,17 @@ router.post('/', authMiddleware, async (req, res) => {
         if (participantMembership.role !== 'child')
           return res.status(400).json({ error: 'Quest participants must be child profiles' })
       }
-    } else if (assigned_to) {
-      const assignee = await getMembership(family_id, assigned_to)
+    }
+
+    // Empty/whitespace assigned_to → null (avoids FK violation on '').
+    const cleanAssignedTo = typeof assigned_to === 'string' && assigned_to.trim()
+      ? assigned_to.trim()
+      : null
+
+    if (!normalizedQuest && cleanAssignedTo) {
+      const assignee = await getMembership(family_id, cleanAssignedTo)
       if (!assignee) return res.status(400).json({ error: 'Assignee is not in this family' })
-      if (assignee.role !== 'child' && assigned_to !== req.user.email)
+      if (assignee.role !== 'child' && cleanAssignedTo !== req.user.email)
         return res.status(400).json({ error: 'Tasks can be assigned only to child profiles or yourself' })
     }
 
@@ -293,9 +300,9 @@ router.post('/', authMiddleware, async (req, res) => {
         category,
         priority,
         status,
-        normalizedQuest ? null : assigned_to,
+        normalizedQuest ? null : cleanAssignedTo,
         req.user.email,
-        due_date,
+        due_date || null,
         points_reward ?? 0,
         normalizedQuest,
         normalizedQuest ? toPositiveInt(min_participants, Math.min(normalizedParticipants.length, 2) || 1) : 1,
@@ -364,17 +371,37 @@ router.post('/:id/participants/complete', authMiddleware, async (req, res) => {
 })
 
 // Update task
+const ALLOWED_TASK_COLUMNS = new Set([
+  'title',
+  'description',
+  'category',
+  'priority',
+  'status',
+  'assigned_to',
+  'due_date',
+  'points_reward',
+  'min_participants',
+  'reward_multiplier',
+])
+
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const updates = []
     const values = []
     let paramCount = 1
 
-    Object.entries(req.body).forEach(([key, value]) => {
+    for (const [key, value] of Object.entries(req.body || {})) {
+      if (!ALLOWED_TASK_COLUMNS.has(key)) continue
+      // assigned_to: empty string → null
+      const v = key === 'assigned_to' && typeof value === 'string' && !value.trim() ? null : value
       updates.push(`${key} = $${paramCount}`)
-      values.push(value)
+      values.push(v)
       paramCount++
-    })
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No updatable fields provided' })
+    }
 
     updates.push(`updated_at = CURRENT_TIMESTAMP`)
     values.push(req.params.id)
@@ -385,9 +412,9 @@ router.put('/:id', authMiddleware, async (req, res) => {
     )
 
     const updatedTask = result.rows[0]
-    if (updatedTask?.family_id) {
+    if (!updatedTask) return res.status(404).json({ error: 'Task not found' })
+    if (updatedTask.family_id) {
       broadcast(updatedTask.family_id, { type: 'tasks_updated' })
-      // Completing a task changes member points
       if (updatedTask.status === 'completed') {
         broadcast(updatedTask.family_id, { type: 'members_updated' })
       }

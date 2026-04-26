@@ -177,10 +177,18 @@ export default function RewardsScreen() {
       if (reward._source === 'db') {
         await apiClient.redeemReward(reward.id, isParent ? activeChild.user_email : null)
       } else {
-        await apiClient.updateFamilyMember(activeChild.id, {
-          points: currentPoints - reward.points_cost,
-        })
-        await addStaticRewardClaim(family.id, activeChild.user_email, reward)
+        // 1. Save claim locally first — if this fails, points stay intact.
+        const savedClaim = await addStaticRewardClaim(family.id, activeChild.user_email, reward)
+        if (!savedClaim) throw new Error('Не удалось сохранить награду локально')
+        // 2. Atomic decrement on server (avoids race with concurrent task rewards).
+        try {
+          await apiClient.updateFamilyMember(activeChild.id, {
+            points_delta: -reward.points_cost,
+          })
+        } catch (e) {
+          // Best-effort rollback of local claim is hard; surface the error.
+          throw new Error(e?.message || 'Не удалось списать звёзды')
+        }
       }
     },
     onSuccess: (_, reward) => {

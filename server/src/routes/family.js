@@ -231,17 +231,44 @@ router.delete('/:familyId/members/:memberId', authMiddleware, async (req, res) =
 })
 
 // Update family member
+const ALLOWED_MEMBER_COLUMNS = new Set([
+  'display_name',
+  'role',
+  'avatar_color',
+  'animal_id',
+  'points',
+  'tasks_completed',
+  'level',
+  'achievements_json',
+])
+
 router.put('/members/:memberId', authMiddleware, async (req, res) => {
   try {
+    const body = req.body || {}
     const updates = []
     const values = []
     let paramCount = 1
 
-    Object.entries(req.body).forEach(([key, value]) => {
+    // Atomic points delta (used for reward purchases / penalties to avoid races).
+    if (Number.isFinite(Number(body.points_delta))) {
+      const delta = Math.trunc(Number(body.points_delta))
+      updates.push(`points = GREATEST(points + $${paramCount}, 0)`)
+      values.push(delta)
+      paramCount++
+      updates.push(`level = FLOOR(GREATEST(points + $${paramCount - 1}, 0) / 100) + 1`)
+    }
+
+    for (const [key, value] of Object.entries(body)) {
+      if (key === 'points_delta') continue
+      if (!ALLOWED_MEMBER_COLUMNS.has(key)) continue
       updates.push(`${key} = $${paramCount}`)
       values.push(value)
       paramCount++
-    })
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No updatable fields provided' })
+    }
 
     values.push(req.params.memberId)
 
@@ -251,7 +278,8 @@ router.put('/members/:memberId', authMiddleware, async (req, res) => {
     )
 
     const updated = result.rows[0]
-    if (updated?.family_id) broadcast(updated.family_id, { type: 'members_updated' })
+    if (!updated) return res.status(404).json({ error: 'Member not found' })
+    if (updated.family_id) broadcast(updated.family_id, { type: 'members_updated' })
     res.json(updated)
   } catch (error) {
     console.error(error)
